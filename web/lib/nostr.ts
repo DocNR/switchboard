@@ -213,18 +213,41 @@ function extractZapSender(zapReceipt: Event): string | null {
   return null
 }
 
-// Extract sats from a kind 9735 zap receipt event
+// Extract sats from a kind 9735 zap receipt event.
+// Tries the `amount` tag in the embedded zap request first (millisats),
+// then falls back to parsing the bolt11 invoice amount from the receipt.
 function extractZapSats(zapReceipt: Event): number {
+  // 1. Try amount tag from the embedded zap request (most reliable when present)
   try {
     const descTag = zapReceipt.tags.find(t => t[0] === 'description')
-    if (!descTag) return 0
-    const zapRequest = JSON.parse(descTag[1])
-    const amountTag = zapRequest.tags?.find((t: string[]) => t[0] === 'amount')
-    if (!amountTag) return 0
-    return Math.floor(parseInt(amountTag[1]) / 1000)  // millisats → sats
-  } catch {
-    return 0
-  }
+    if (descTag) {
+      const zapRequest = JSON.parse(descTag[1])
+      const amountTag = zapRequest.tags?.find((t: string[]) => t[0] === 'amount')
+      if (amountTag) return Math.floor(parseInt(amountTag[1]) / 1000)  // millisats → sats
+    }
+  } catch { /* fall through to bolt11 */ }
+
+  // 2. Fallback: parse the bolt11 invoice on the receipt itself.
+  //    Many zap services omit the amount tag from the zap request.
+  //    Format: lnbc<amount><multiplier>1... where multiplier is m/u/n/p
+  try {
+    const bolt11Tag = zapReceipt.tags.find(t => t[0] === 'bolt11')
+    if (bolt11Tag?.[1]) return parseBolt11Amount(bolt11Tag[1])
+  } catch { /* unparseable */ }
+
+  return 0
+}
+
+// Parse sat amount from a bolt11 invoice string.
+// BOLT #11 amount encoding: lnbc<number><multiplier>1<data>
+// Multipliers: m = milli (100,000 sats), u = micro (100 sats),
+//              n = nano (0.1 sats), p = pico (0.0001 sats)
+function parseBolt11Amount(bolt11: string): number {
+  const match = bolt11.match(/^lnbc(\d+)([munp])/)
+  if (!match) return 0
+  const num = parseInt(match[1])
+  const multipliers: Record<string, number> = { m: 100_000, u: 100, n: 0.1, p: 0.0001 }
+  return Math.round(num * multipliers[match[2]])
 }
 
 // Fetch the most recent post (kind 1 or 6) for each pubkey in a list.
