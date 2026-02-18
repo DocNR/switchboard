@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { nip19 } from 'nostr-tools'
 import type { Rules, AddRule, RemoveRule, Profile } from '@/lib/types'
 import { DEFAULT_RELAYS } from '@/lib/nostr'
@@ -102,11 +102,11 @@ export default function RulesBuilder({
         <span className="text-zinc-500 text-sm">days</span>
       </div>
 
-      {/* ── Auto-Follow ── */}
+      {/* ── Discover ── */}
       <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-2">
         <div className="mb-1">
-          <p className="text-zinc-200 text-sm font-semibold">Auto-Follow</p>
-          <p className="text-zinc-600 text-xs">Follow accounts that engage with you</p>
+          <p className="text-zinc-200 text-sm font-semibold">Discover</p>
+          <p className="text-zinc-600 text-xs">Suggest follows based on engagement with you</p>
         </div>
         {rules.add.map((rule, i) => {
           const meta = ADD_META[rule.signal]
@@ -525,6 +525,9 @@ function RelayEditor({
 
   const isDefault = relays.length === DEFAULT_RELAYS.length &&
     DEFAULT_RELAYS.every(r => relays.includes(r))
+
+  // Auto-check status when the panel opens
+  useEffect(() => { checkAll() }, [])
 
   function handleAdd() {
     const url = input.trim()
