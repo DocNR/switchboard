@@ -102,24 +102,35 @@ export function evaluateAll(
   for (const pubkey of currentFollows) {
     seen.add(pubkey)
     const data = engagementData.get(pubkey) ?? emptyEngagement(pubkey)
-    results.push({
-      pubkey,
-      result: evaluate(pubkey, data, rules, true),
-      engagement: data,
-      isCurrentFollow: true,
-    })
+    const result = evaluate(pubkey, data, rules, true)
+    results.push({ pubkey, result, engagement: data, isCurrentFollow: true })
+
+    // Log REMOVE decisions so we can debug false positives
+    if (result === 'REMOVE') {
+      const matchedRule = rules.remove.find(r => meetsRemoveRule(data, r))
+      console.log(
+        `[switchboard] REMOVE ${pubkey.slice(0, 8)}… | reason=${matchedRule?.signal} ` +
+        `| lastPost=${data.lastPostAt ? new Date(data.lastPostAt * 1000).toISOString().slice(0, 10) : 'null'} ` +
+        `| zaps=${data.zapsSats}sats replies=${data.replyCount} reposts=${data.repostCount} reactions=${data.reactionCount}`
+      )
+    }
   }
 
   // Evaluate engagers who aren't currently followed (ADD candidates)
   for (const [pubkey, data] of engagementData) {
     if (seen.has(pubkey)) continue
-    results.push({
-      pubkey,
-      result: evaluate(pubkey, data, rules, false),
-      engagement: data,
-      isCurrentFollow: false,
-    })
+    const result = evaluate(pubkey, data, rules, false)
+    results.push({ pubkey, result, engagement: data, isCurrentFollow: false })
   }
+
+  const summary = {
+    keep: results.filter(r => r.result === 'KEEP').length,
+    remove: results.filter(r => r.result === 'REMOVE').length,
+    add: results.filter(r => r.result === 'ADD').length,
+    protected: results.filter(r => r.result === 'PROTECTED').length,
+    tooNew: results.filter(r => r.result === 'TOO_NEW').length,
+  }
+  console.log(`[switchboard] Evaluation: ${JSON.stringify(summary)}`)
 
   return results
 }

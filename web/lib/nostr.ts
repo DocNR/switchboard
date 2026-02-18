@@ -143,6 +143,9 @@ export async function fetchEngagementData(
   const events = [...engagementEvents, ...zapEvents]
   pool.close(relays)
 
+  console.log(`[switchboard] Engagement query: window=${windowDays}d, since=${new Date(since * 1000).toISOString()}`)
+  console.log(`[switchboard] Results: ${engagementEvents.length} engagement events, ${zapEvents.length} zap receipts`)
+
   const data = new Map<string, EngagementData>()
 
   const get = (pk: string): EngagementData => {
@@ -161,11 +164,17 @@ export async function fetchEngagementData(
     return data.get(pk)!
   }
 
+  // Track zap parsing for debug logging
+  let zapsParsed = 0, zapsNoSender = 0, zapsZeroAmount = 0
+
   for (const event of events) {
     // For zap receipts (9735), event.pubkey is the zap service, not the sender.
     // The actual sender is in the uppercase P tag or the embedded zap request.
     const sender = event.kind === 9735 ? extractZapSender(event) : event.pubkey
-    if (!sender || sender === pubkey) continue  // skip self or unparseable
+    if (!sender || sender === pubkey) {
+      if (event.kind === 9735 && !sender) zapsNoSender++
+      continue
+    }
 
     const d = get(sender)
 
@@ -184,11 +193,28 @@ export async function fetchEngagementData(
       case 7:
         d.reactionCount++
         break
-      case 9735:
-        d.zapsSats += extractZapSats(event)
+      case 9735: {
+        const sats = extractZapSats(event)
+        d.zapsSats += sats
+        zapsParsed++
+        if (sats === 0) zapsZeroAmount++
         break
+      }
     }
   }
+
+  // Log zap summary
+  if (zapEvents.length > 0) {
+    console.log(`[switchboard] Zaps parsed: ${zapsParsed} ok, ${zapsNoSender} no sender, ${zapsZeroAmount} zero amount`)
+    const zapSenders = [...data.entries()]
+      .filter(([, d]) => d.zapsSats > 0)
+      .sort((a, b) => b[1].zapsSats - a[1].zapsSats)
+      .slice(0, 20)
+      .map(([pk, d]) => `${pk.slice(0, 8)}…=${d.zapsSats}sats`)
+    console.log(`[switchboard] Top zap senders: ${zapSenders.join(', ') || '(none)'}`)
+  }
+
+  console.log(`[switchboard] Unique engagers: ${data.size}`)
 
   return data
 }
