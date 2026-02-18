@@ -55,6 +55,39 @@ export async function fetchFollowList(
   return { follows, rawEvent: latest }
 }
 
+// Check which relays have the user's latest kind 3 event.
+// Returns per-relay status: 'current', 'stale', or 'missing'.
+export async function checkFollowListCoverage(
+  pubkey: string,
+  latestEventId: string,
+  relays = DEFAULT_RELAYS
+): Promise<Map<string, 'current' | 'stale' | 'missing'>> {
+  const pool = new SimplePool()
+  const result = new Map<string, 'current' | 'stale' | 'missing'>()
+
+  await Promise.all(relays.map(async relay => {
+    try {
+      const events = await Promise.race([
+        pool.querySync([relay], { kinds: [3], authors: [pubkey], limit: 1 }),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('timeout')), 3000)
+        ),
+      ])
+      if (!events.length) {
+        result.set(relay, 'missing')
+      } else {
+        const latest = events.sort((a, b) => b.created_at - a.created_at)[0]
+        result.set(relay, latest.id === latestEventId ? 'current' : 'stale')
+      }
+    } catch {
+      result.set(relay, 'missing')
+    }
+  }))
+
+  pool.close(relays)
+  return result
+}
+
 // Fetch profiles (kind 0) for a list of pubkeys. Returns a map of pubkey → Profile.
 export async function fetchProfiles(
   pubkeys: string[],

@@ -19,6 +19,7 @@ import {
   fetchEngagementData,
   fetchLastPostDates,
   fetchAllowlist,
+  checkFollowListCoverage,
   buildNewFollowListEvent,
   buildAllowlistEvent,
   DEFAULT_RELAYS,
@@ -132,6 +133,7 @@ export default function DashboardPage() {
   // ── broadcast ──
   const [broadcasting, setBroadcasting] = useState(false)
   const [broadcastResult, setBroadcastResult] = useState<string | null>(null)
+  const [relayCoverage, setRelayCoverage] = useState<Map<string, 'current' | 'stale' | 'missing'> | null>(null)
 
   // ── init ──
   useEffect(() => {
@@ -221,6 +223,8 @@ export default function DashboardPage() {
       setRawEvent(re)
       // Kick off background profile fetch so allowlist can search by name
       if (fl.length > 0) backgroundFetchFollowProfiles(fl.map(f => f.pubkey), fetchRelays)
+      // Check relay coverage in the background
+      if (re) checkFollowListCoverage(pk, re.id, fetchRelays).then(setRelayCoverage)
       if (nip51Allowlist.length > 0) {
         setRules(prev => ({ ...prev, allowlist: nip51Allowlist }))
         setSavedAllowlist(new Set(nip51Allowlist))
@@ -391,7 +395,7 @@ export default function DashboardPage() {
   // Re-publish the existing signed follow list event to all configured relays.
   // No re-signing required — the event already has a valid id + sig.
   async function broadcastFollowList() {
-    if (!rawEvent) return
+    if (!rawEvent || !pubkey) return
     setBroadcasting(true)
     setBroadcastResult(null)
     try {
@@ -401,7 +405,9 @@ export default function DashboardPage() {
       )
       pool.close(relays)
       const ok = results.filter(r => r.status === 'fulfilled').length
-      setBroadcastResult(`Broadcast to ${ok}/${relays.length} relay${relays.length !== 1 ? 's' : ''}`)
+      setBroadcastResult(`Synced to ${ok}/${relays.length} relay${relays.length !== 1 ? 's' : ''}`)
+      // Refresh coverage after broadcast
+      checkFollowListCoverage(pubkey, rawEvent.id, relays).then(setRelayCoverage)
       setTimeout(() => setBroadcastResult(null), 4000)
     } catch {
       setBroadcastResult('Broadcast failed')
@@ -558,21 +564,36 @@ export default function DashboardPage() {
                 Manage Follow List →
               </button>
 
-              {/* Broadcast — surfaces relay sync issues */}
-              {rawEvent && (
-                <div className="flex items-center justify-between">
-                  <p className="text-zinc-600 text-xs">
-                    {broadcastResult ?? 'Follow list may be out of sync across relays'}
-                  </p>
-                  <button
-                    onClick={broadcastFollowList}
-                    disabled={broadcasting}
-                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-50 flex-shrink-0 ml-3"
-                  >
-                    {broadcasting ? 'Broadcasting…' : 'Sync to all relays'}
-                  </button>
-                </div>
-              )}
+              {/* Relay coverage */}
+              {rawEvent && (() => {
+                const current = relayCoverage ? [...relayCoverage.values()].filter(v => v === 'current').length : 0
+                const stale = relayCoverage ? [...relayCoverage.values()].filter(v => v === 'stale').length : 0
+                const total = relayCoverage?.size ?? relays.length
+                const allCurrent = relayCoverage !== null && current === total
+                return (
+                  <div className="flex items-center justify-between">
+                    <p className="text-zinc-600 text-xs">
+                      {broadcastResult
+                        ?? (relayCoverage === null
+                          ? 'Checking relay coverage…'
+                          : allCurrent
+                            ? `Follow list synced across all ${total} relays`
+                            : `Found on ${current}/${total} relays${stale > 0 ? ` (${stale} stale)` : ''}`
+                        )
+                      }
+                    </p>
+                    {!allCurrent && relayCoverage !== null && (
+                      <button
+                        onClick={broadcastFollowList}
+                        disabled={broadcasting}
+                        className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-50 flex-shrink-0 ml-3"
+                      >
+                        {broadcasting ? 'Syncing…' : 'Sync to all relays'}
+                      </button>
+                    )}
+                  </div>
+                )
+              })()}
 
               {/* Recent notes */}
               {notes.length > 0 && (
