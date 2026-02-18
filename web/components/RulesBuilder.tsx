@@ -70,6 +70,27 @@ export default function RulesBuilder({
   const [showRelays, setShowRelays] = useState(false)
   const [detectingRelays, setDetectingRelays] = useState(false)
 
+  // Track raw input strings so users can clear fields on mobile.
+  // Actual rule values update on blur or when input is valid.
+  const [rawInputs, setRawInputs] = useState<Record<string, string>>({})
+
+  function getRaw(key: string, fallback: number): string {
+    return key in rawInputs ? rawInputs[key] : String(fallback)
+  }
+
+  function setRaw(key: string, value: string) {
+    setRawInputs(prev => ({ ...prev, [key]: value }))
+  }
+
+  function commitRaw(key: string, min: number, setter: (value: number) => void) {
+    const raw = rawInputs[key]
+    if (raw === undefined) return
+    const parsed = parseInt(raw)
+    const value = isNaN(parsed) ? min : Math.max(min, parsed)
+    setter(value)
+    setRawInputs(prev => { const next = { ...prev }; delete next[key]; return next })
+  }
+
   function updateAdd(index: number, patch: Partial<AddRule>) {
     onChange({ ...rules, add: rules.add.map((r, i) => i === index ? { ...r, ...patch } : r) })
   }
@@ -94,8 +115,10 @@ export default function RulesBuilder({
         <span className="text-zinc-400 text-sm">Lookback window</span>
         <input
           type="number"
-          value={rules.windowDays}
-          onChange={e => onChange({ ...rules, windowDays: Math.max(1, parseInt(e.target.value) || 1) })}
+          inputMode="numeric"
+          value={getRaw('window', rules.windowDays)}
+          onChange={e => setRaw('window', e.target.value)}
+          onBlur={() => commitRaw('window', 1, v => onChange({ ...rules, windowDays: v }))}
           className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-center"
           min={1} max={365}
         />
@@ -124,9 +147,11 @@ export default function RulesBuilder({
               <span className="text-zinc-600 text-xs">&ge;</span>
               <input
                 type="number"
-                value={rule.threshold}
+                inputMode="numeric"
+                value={getRaw(`add-${i}`, rule.threshold)}
                 disabled={!rule.enabled}
-                onChange={e => updateAdd(i, { threshold: Math.max(1, parseInt(e.target.value) || 1) })}
+                onChange={e => setRaw(`add-${i}`, e.target.value)}
+                onBlur={() => commitRaw(`add-${i}`, 1, v => updateAdd(i, { threshold: v }))}
                 className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-right disabled:opacity-30 disabled:cursor-not-allowed"
                 min={1}
               />
@@ -141,8 +166,10 @@ export default function RulesBuilder({
           <span className="text-zinc-500 text-sm flex-1">Min account age</span>
           <input
             type="number"
-            value={rules.minAccountAgeDays}
-            onChange={e => onChange({ ...rules, minAccountAgeDays: Math.max(0, parseInt(e.target.value) || 0) })}
+            inputMode="numeric"
+            value={getRaw('age', rules.minAccountAgeDays)}
+            onChange={e => setRaw('age', e.target.value)}
+            onBlur={() => commitRaw('age', 0, v => onChange({ ...rules, minAccountAgeDays: v }))}
             className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-right"
             min={0}
           />
@@ -175,9 +202,11 @@ export default function RulesBuilder({
                   <>
                     <input
                       type="number"
-                      value={rule.threshold}
+                      inputMode="numeric"
+                      value={getRaw(`rm-${i}`, rule.threshold)}
                       disabled={!rule.enabled}
-                      onChange={e => updateRemove(i, { threshold: Math.max(0, parseInt(e.target.value) || 0) })}
+                      onChange={e => setRaw(`rm-${i}`, e.target.value)}
+                      onBlur={() => commitRaw(`rm-${i}`, 0, v => updateRemove(i, { threshold: v }))}
                       className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-right disabled:opacity-30 disabled:cursor-not-allowed"
                       min={0}
                     />

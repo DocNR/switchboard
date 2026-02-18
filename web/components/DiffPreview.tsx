@@ -50,14 +50,9 @@ export default function DiffPreview({
 
   const totalSteps   = (hasRemoves ? 1 : 0) + (hasAdds ? 1 : 0)
 
-  // Bulk helpers — unfollows (global)
+  // Bulk helpers — unfollows
   function unfollowAll() { removes.forEach(e => { if  (keepOverrides.has(e.pubkey)) onKeepToggle(e.pubkey) }) }
   function keepAll()     { removes.forEach(e => { if (!keepOverrides.has(e.pubkey)) onKeepToggle(e.pubkey) }) }
-  // Bulk helpers — unfollows (per sub-group)
-  function unfollowAllConfirmed() { confirmedInactive.forEach(e => { if  (keepOverrides.has(e.pubkey)) onKeepToggle(e.pubkey) }) }
-  function keepAllConfirmed()     { confirmedInactive.forEach(e => { if (!keepOverrides.has(e.pubkey)) onKeepToggle(e.pubkey) }) }
-  function unfollowAllNotFound()  { notFoundOnRelays.forEach(e =>  { if  (keepOverrides.has(e.pubkey)) onKeepToggle(e.pubkey) }) }
-  function keepAllNotFound()      { notFoundOnRelays.forEach(e =>  { if (!keepOverrides.has(e.pubkey)) onKeepToggle(e.pubkey) }) }
 
   // Bulk helpers — follows
   function followAll() { adds.forEach(e => { if  (skipOverrides.has(e.pubkey)) onSkipToggle(e.pubkey) }) }
@@ -186,18 +181,13 @@ export default function DiffPreview({
             </p>
           </div>
 
-          {/* Confirmed inactive sub-group */}
-          {confirmedInactive.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <p className="text-zinc-600 text-xs">Confirmed inactive</p>
-                <div className="flex gap-3 text-xs">
-                  <button onClick={unfollowAllConfirmed} className="text-zinc-600 hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">All</button>
-                  <span className="text-zinc-700">·</span>
-                  <button onClick={keepAllConfirmed} className="text-zinc-600 hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">None</button>
-                </div>
-              </div>
-              <div className="space-y-1 max-h-56 overflow-y-auto">
+          <div className="space-y-1 max-h-[60vh] overflow-y-auto">
+            {/* Confirmed inactive sub-group */}
+            {confirmedInactive.length > 0 && (
+              <>
+                {notFoundOnRelays.length > 0 && (
+                  <p className="text-zinc-600 text-xs pt-1 pb-0.5">Confirmed inactive</p>
+                )}
                 {confirmedInactive.map(({ pubkey, engagement }) => (
                   <PersonRow
                     key={pubkey}
@@ -209,25 +199,15 @@ export default function DiffPreview({
                     accent="red"
                   />
                 ))}
-              </div>
-            </div>
-          )}
+              </>
+            )}
 
-          {/* Not found sub-group */}
-          {notFoundOnRelays.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between">
-                <p className="text-zinc-500 text-xs">⚠ Not found on queried relays</p>
-                <div className="flex gap-3 text-xs">
-                  <button onClick={unfollowAllNotFound} className="text-zinc-600 hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">All</button>
-                  <span className="text-zinc-700">·</span>
-                  <button onClick={keepAllNotFound} className="text-zinc-600 hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">None</button>
-                </div>
-              </div>
-              <p className="text-zinc-600 text-xs -mt-0.5">
-                Higher false-positive risk — may post to relays not in your list. Review carefully.
-              </p>
-              <div className="space-y-1 max-h-56 overflow-y-auto">
+            {/* Not found sub-group */}
+            {notFoundOnRelays.length > 0 && (
+              <>
+                <p className="text-zinc-500 text-xs pt-2 pb-0.5">
+                  Not found on queried relays — may be false positives
+                </p>
                 {notFoundOnRelays.map(({ pubkey }) => (
                   <PersonRow
                     key={pubkey}
@@ -239,9 +219,9 @@ export default function DiffPreview({
                     accent="amber"
                   />
                 ))}
-              </div>
-            </div>
-          )}
+              </>
+            )}
+          </div>
         </div>
       )}
 
@@ -267,7 +247,7 @@ export default function DiffPreview({
             </p>
           </div>
 
-          <div className="space-y-1 max-h-72 overflow-y-auto">
+          <div className="space-y-1 max-h-[60vh] overflow-y-auto">
             {adds.map(({ pubkey, engagement }) => (
               <PersonRow
                 key={pubkey}
