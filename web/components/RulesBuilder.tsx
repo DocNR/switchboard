@@ -27,6 +27,7 @@ interface Summary {
   keeping: number
   protected: number
   tooNew: number
+  lastPostFound: number
 }
 
 interface RulesBuilderProps {
@@ -277,6 +278,17 @@ export default function RulesBuilder({
             </div>
 
             <p className="text-zinc-700 text-xs text-center">Rule changes apply instantly — tweak thresholds freely.</p>
+
+            {/* Relay coverage diagnostic */}
+            {summary.total > 0 && (
+              <p className="text-zinc-700 text-xs text-center">
+                Last post visible for{' '}
+                <span className={summary.lastPostFound < summary.total * 0.5 ? 'text-amber-600' : 'text-zinc-500'}>
+                  {summary.lastPostFound}/{summary.total}
+                </span>
+                {' '}follows — {summary.total - summary.lastPostFound} not visible on current relays
+              </p>
+            )}
 
             {summary.tooNew > 0 && (
               <p className="text-zinc-600 text-xs text-center">

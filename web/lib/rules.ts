@@ -129,13 +129,16 @@ export function evaluateAll(
 
 // Summary counts from an evaluation pass
 export function summarize(evalled: EvalledPubkey[]) {
+  const follows = evalled.filter(e => e.isCurrentFollow)
   return {
-    total: evalled.filter(e => e.isCurrentFollow).length,
+    total: follows.length,
     adding: evalled.filter(e => e.result === 'ADD').length,
     removing: evalled.filter(e => e.result === 'REMOVE').length,
     keeping: evalled.filter(e => e.result === 'KEEP').length,
     protected: evalled.filter(e => e.result === 'PROTECTED').length,
     tooNew: evalled.filter(e => e.result === 'TOO_NEW').length,
+    // How many follows had last-post data found on the queried relays
+    lastPostFound: follows.filter(e => e.engagement?.lastPostAt !== null).length,
   }
 }
 

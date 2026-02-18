@@ -320,9 +320,9 @@ export default function DashboardPage() {
 
       const pool = new SimplePool()
       await Promise.allSettled(
-        DEFAULT_RELAYS.map(relay => pool.publish([relay], signedEvent as unknown as Event))
+        relays.map(relay => pool.publish([relay], signedEvent as unknown as Event))
       )
-      pool.close(DEFAULT_RELAYS)
+      pool.close(relays)
 
       const newCount = signedEvent.tags.filter((t: string[]) => t[0] === 'p').length
       setNewFollowCount(newCount)
