@@ -284,11 +284,22 @@ export default function DashboardPage() {
   async function startPreview() {
     setPreviewLoading(true)
     try {
-      // Only fetch profiles for the candidates we'll display
       const candidates = evalled
         .filter(e => e.result === 'ADD' || e.result === 'REMOVE' || e.result === 'TOO_NEW')
         .map(e => e.pubkey)
-      const profileMap = await fetchProfiles(candidates, relays)
+
+      // Seed from the background-fetched follow profile cache so REMOVE
+      // candidates (all current follows) show names/pfps without a relay fetch.
+      const profileMap = new Map(followProfiles)
+
+      // Only hit relays for ADD candidates (engagers who aren't current follows)
+      // and any follows missing from the cache.
+      const toFetch = candidates.filter(pk => !profileMap.has(pk))
+      if (toFetch.length > 0) {
+        const fresh = await fetchProfiles(toFetch, relays)
+        for (const [pk, p] of fresh) profileMap.set(pk, p)
+      }
+
       setPreviewProfiles(profileMap)
       setKeepOverrides(new Set())
       setSkipOverrides(new Set())

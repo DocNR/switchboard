@@ -131,6 +131,7 @@ export default function DiffPreview({
             return (
               <Row
                 key={pubkey}
+                pubkey={pubkey}
                 name={displayName(pubkey, profiles.get(pubkey))}
                 picture={profiles.get(pubkey)?.picture}
                 subtitle={removeReason(engagement)}
@@ -155,6 +156,7 @@ export default function DiffPreview({
             return (
               <Row
                 key={pubkey}
+                pubkey={pubkey}
                 name={displayName(pubkey, profiles.get(pubkey))}
                 picture={profiles.get(pubkey)?.picture}
                 subtitle="not found on queried relays"
@@ -186,6 +188,7 @@ export default function DiffPreview({
             return (
               <Row
                 key={pubkey}
+                pubkey={pubkey}
                 name={displayName(pubkey, profiles.get(pubkey))}
                 picture={profiles.get(pubkey)?.picture}
                 subtitle={formatEngagement(engagement)}
@@ -204,6 +207,7 @@ export default function DiffPreview({
           {tooNew.map(({ pubkey, engagement }) => (
             <Row
               key={pubkey}
+              pubkey={pubkey}
               name={displayName(pubkey, profiles.get(pubkey))}
               picture={profiles.get(pubkey)?.picture}
               subtitle={formatEngagement(engagement)}
@@ -274,6 +278,7 @@ function Section({
 }
 
 function Row({
+  pubkey,
   name,
   picture,
   subtitle,
@@ -283,6 +288,7 @@ function Row({
   onAction,
   badge,
 }: {
+  pubkey: string
   name: string
   picture?: string
   subtitle?: string
@@ -292,20 +298,37 @@ function Row({
   onAction?: () => void
   badge?: string
 }) {
+  const npub = nip19.npubEncode(pubkey)
   return (
     <div className={`flex items-center gap-3 p-3 rounded-lg border border-zinc-800 transition-opacity ${dimmed ? 'opacity-40' : ''}`}>
-      {picture ? (
-        <img
-          src={picture}
-          alt={name}
-          className="w-7 h-7 rounded-full flex-shrink-0 bg-zinc-800 object-cover"
-          onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-        />
-      ) : (
-        <div className="w-7 h-7 rounded-full flex-shrink-0 bg-zinc-800" />
-      )}
+      <a
+        href={`https://primal.net/p/${npub}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex-shrink-0"
+        title="Open profile"
+      >
+        {picture ? (
+          <img
+            src={picture}
+            alt={name}
+            className="w-7 h-7 rounded-full bg-zinc-800 object-cover hover:ring-2 hover:ring-purple-500 transition-all"
+            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+          />
+        ) : (
+          <div className="w-7 h-7 rounded-full bg-zinc-800 hover:ring-2 hover:ring-purple-500 transition-all" />
+        )}
+      </a>
       <div className="min-w-0 flex-1">
-        <p className="text-sm text-zinc-300 truncate">{name}</p>
+        <a
+          href={`https://primal.net/p/${npub}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm text-zinc-300 truncate hover:text-white transition-colors block"
+          title="Open profile"
+        >
+          {name}
+        </a>
         {subtitle && <p className={`text-xs mt-0.5 ${subtitleClass}`}>{subtitle}</p>}
       </div>
       {badge && <span className="text-xs text-zinc-600 flex-shrink-0">{badge}</span>}
