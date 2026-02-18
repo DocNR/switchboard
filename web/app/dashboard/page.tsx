@@ -18,7 +18,9 @@ import {
   fetchRecentNotes,
   fetchEngagementData,
   fetchLastPostDates,
+  fetchAllowlist,
   buildNewFollowListEvent,
+  buildAllowlistEvent,
   DEFAULT_RELAYS,
 } from '@/lib/nostr'
 import { evaluateAll, summarize } from '@/lib/rules'
@@ -81,6 +83,10 @@ export default function DashboardPage() {
   const [keepOverrides, setKeepOverrides] = useState<Set<string>>(new Set())
   const [skipOverrides, setSkipOverrides] = useState<Set<string>>(new Set())
 
+  // ── allowlist sync ──
+  const [allowlistSaving, setAllowlistSaving] = useState(false)
+  const [allowlistSaved, setAllowlistSaved] = useState(false)
+
   // ── phase 4: publish ──
   const [publishing, setPublishing] = useState(false)
   const [publishError, setPublishError] = useState<string | null>(null)
@@ -133,15 +139,19 @@ export default function DashboardPage() {
   async function loadProfile(pk: string) {
     setProfileLoading(true)
     try {
-      const [profileMap, { follows: fl, rawEvent: re }, recentNotes] = await Promise.all([
+      const [profileMap, { follows: fl, rawEvent: re }, recentNotes, nip51Allowlist] = await Promise.all([
         fetchProfiles([pk], relays),
         fetchFollowList(pk, relays),
         fetchRecentNotes(pk, 30, relays),
+        fetchAllowlist(pk, relays),
       ])
       const cutoff = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60
       setProfile(profileMap.get(pk) ?? null)
       setFollows(fl)
       setRawEvent(re)
+      if (nip51Allowlist.length > 0) {
+        setRules(prev => ({ ...prev, allowlist: nip51Allowlist }))
+      }
       setNotes(recentNotes.slice(0, 10))
       setPostsLast30d(recentNotes.filter(n => n.created_at >= cutoff).length)
     } catch (err) {
@@ -267,6 +277,27 @@ export default function DashboardPage() {
     }
   }
 
+  async function saveAllowlist() {
+    if (!window.nostr || !pubkey) return
+    setAllowlistSaving(true)
+    setAllowlistSaved(false)
+    try {
+      const unsignedEvent = buildAllowlistEvent(pubkey, rules.allowlist)
+      const signedEvent = await window.nostr.signEvent(unsignedEvent)
+      const pool = new SimplePool()
+      await Promise.allSettled(
+        relays.map(r => pool.publish([r], signedEvent as unknown as Event))
+      )
+      pool.close(relays)
+      setAllowlistSaved(true)
+      setTimeout(() => setAllowlistSaved(false), 3000)
+    } catch (err) {
+      console.error('Failed to save allowlist:', err)
+    } finally {
+      setAllowlistSaving(false)
+    }
+  }
+
   function handleDisconnect() {
     localStorage.removeItem('nostr_pubkey')
     window.location.href = '/'
@@ -356,7 +387,7 @@ export default function DashboardPage() {
 
           <RulesBuilder
             rules={rules}
-            onChange={setRules}
+            onChange={rules => { setRules(rules); setAllowlistSaved(false) }}
             relays={relays}
             onRelaysChange={handleRelaysChange}
             onDetectRelays={handleDetectRelays}
@@ -369,6 +400,10 @@ export default function DashboardPage() {
               if (previewLoading) return
               await startPreview()
             }}
+            onSaveAllowlist={saveAllowlist}
+            allowlistSaving={allowlistSaving}
+            allowlistSaved={allowlistSaved}
+            follows={follows}
           />
         </>
 

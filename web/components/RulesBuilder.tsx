@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { nip19 } from 'nostr-tools'
-import type { Rules, AddRule, RemoveRule } from '@/lib/types'
+import type { Rules, AddRule, RemoveRule, Follow, Profile } from '@/lib/types'
 
 const ADD_META: Record<string, { label: string; unit: string }> = {
   replies:   { label: 'Replied to me',  unit: 'times' },
@@ -41,6 +41,10 @@ interface RulesBuilderProps {
   loadStep: string
   onLoad: () => void
   onPreview: () => void
+  onSaveAllowlist: () => Promise<void>
+  allowlistSaving: boolean
+  allowlistSaved: boolean
+  follows: Follow[]
 }
 
 export default function RulesBuilder({
@@ -55,6 +59,10 @@ export default function RulesBuilder({
   loadStep,
   onLoad,
   onPreview,
+  onSaveAllowlist,
+  allowlistSaving,
+  allowlistSaved,
+  follows,
 }: RulesBuilderProps) {
   const [showRelays, setShowRelays] = useState(false)
   const [detectingRelays, setDetectingRelays] = useState(false)
@@ -181,9 +189,19 @@ export default function RulesBuilder({
 
       {/* Allowlist */}
       <div className="space-y-2">
-        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Protected follows</p>
+        <div className="flex items-center justify-between">
+          <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Protected follows</p>
+          <button
+            onClick={onSaveAllowlist}
+            disabled={allowlistSaving || allowlistSaved}
+            className="text-xs px-2.5 py-1 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors"
+          >
+            {allowlistSaving ? 'Saving…' : allowlistSaved ? '✓ Saved to Nostr' : 'Save to Nostr'}
+          </button>
+        </div>
         <AllowlistEditor
           allowlist={rules.allowlist}
+          follows={follows}
           onAdd={input => {
             try {
               const hex = input.startsWith('npub1') ? (nip19.decode(input).data as string) : input
@@ -194,6 +212,7 @@ export default function RulesBuilder({
           }}
           onRemove={pk => onChange({ ...rules, allowlist: rules.allowlist.filter(p => p !== pk) })}
         />
+        <p className="text-zinc-700 text-xs">Loaded from and saved to a NIP-51 follow set on your relays.</p>
       </div>
 
       {/* Relay settings */}
@@ -283,41 +302,84 @@ export default function RulesBuilder({
 
 function AllowlistEditor({
   allowlist,
+  follows,
   onAdd,
   onRemove,
 }: {
   allowlist: string[]
+  follows: Follow[]
   onAdd: (input: string) => void
   onRemove: (pubkey: string) => void
 }) {
   const [input, setInput] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
 
-  function handleAdd() {
-    if (!input.trim()) return
-    onAdd(input.trim())
+  // Search follows by pubkey prefix (npub) when no display name is available
+  // Profiles aren't loaded here, so we match on npub prefix
+  const suggestions = input.trim().length >= 2
+    ? follows
+        .filter(f => {
+          if (allowlist.includes(f.pubkey)) return false
+          const npub = nip19.npubEncode(f.pubkey)
+          return npub.toLowerCase().includes(input.toLowerCase()) ||
+                 f.pubkey.startsWith(input.toLowerCase())
+        })
+        .slice(0, 8)
+    : []
+
+  function handleAdd(value = input) {
+    if (!value.trim()) return
+    onAdd(value.trim())
     setInput('')
+    setShowSuggestions(false)
   }
 
   return (
     <div className="space-y-2">
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={input}
-          onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && handleAdd()}
-          placeholder="npub1... or hex pubkey"
-          className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm placeholder-zinc-600 min-w-0"
-        />
-        <button
-          onClick={handleAdd}
-          className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors flex-shrink-0"
-        >
-          Add
-        </button>
+      <div className="relative">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={e => { setInput(e.target.value); setShowSuggestions(true) }}
+            onFocus={() => setShowSuggestions(true)}
+            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+            onKeyDown={e => e.key === 'Enter' && handleAdd()}
+            placeholder="Search follows or paste npub1... / hex"
+            className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm placeholder-zinc-600 min-w-0"
+          />
+          <button
+            onClick={() => handleAdd()}
+            className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors flex-shrink-0"
+          >
+            Add
+          </button>
+        </div>
+
+        {showSuggestions && suggestions.length > 0 && (
+          <div className="absolute z-10 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg overflow-hidden shadow-xl">
+            {suggestions.map(f => {
+              const npub = nip19.npubEncode(f.pubkey)
+              const short = `${npub.slice(0, 12)}…${npub.slice(-6)}`
+              return (
+                <button
+                  key={f.pubkey}
+                  onMouseDown={() => handleAdd(f.pubkey)}
+                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-800 transition-colors text-left"
+                >
+                  <span className="text-sm text-zinc-300 font-mono truncate">{short}</span>
+                  {f.petname && (
+                    <span className="text-xs text-zinc-500 flex-shrink-0">{f.petname}</span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
       </div>
+
       {allowlist.length === 0 && (
-        <p className="text-zinc-700 text-xs">No protected follows. Paste an npub or hex pubkey to add one.</p>
+        <p className="text-zinc-700 text-xs">No protected follows yet.</p>
       )}
       {allowlist.map(pk => {
         const npub = nip19.npubEncode(pk)

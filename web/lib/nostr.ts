@@ -240,6 +240,45 @@ export async function fetchRecentNotes(
   return events.sort((a, b) => b.created_at - a.created_at)
 }
 
+// Fetch the user's switchboard allowlist from a NIP-51 kind 30000 follow set.
+// Returns the pubkeys stored in the list, or [] if none found.
+export async function fetchAllowlist(
+  pubkey: string,
+  relays = DEFAULT_RELAYS
+): Promise<string[]> {
+  const pool = new SimplePool()
+  const events = await pool.querySync(relays, {
+    kinds: [30000],
+    authors: [pubkey],
+    '#d': ['switchboard-allowlist'],
+    limit: 5, // paranoia: grab a few in case of relay inconsistency
+  })
+  pool.close(relays)
+  if (!events.length) return []
+  const latest = events.sort((a, b) => b.created_at - a.created_at)[0]
+  return latest.tags
+    .filter(t => t[0] === 'p' && t[1]?.length === 64)
+    .map(t => t[1])
+}
+
+// Build an unsigned kind 30000 event (NIP-51 follow set) for the switchboard allowlist
+export function buildAllowlistEvent(
+  pubkey: string,
+  allowlist: string[]
+): Omit<Event, 'id' | 'sig'> {
+  return {
+    kind: 30000,
+    pubkey,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [
+      ['d', 'switchboard-allowlist'],
+      ['title', 'switchboard protected follows'],
+      ...allowlist.map(pk => ['p', pk]),
+    ],
+    content: '',
+  }
+}
+
 // Build and return a pruned kind 3 event (unsigned) from an existing event
 // replacingPubkeys: pubkeys to remove from the follow list
 // addingPubkeys: pubkeys to add (with no relay hint or petname by default)
