@@ -99,12 +99,12 @@ export async function fetchEngagementData(
   const since = Math.floor(Date.now() / 1000) - windowDays * 24 * 60 * 60
   const pool = new SimplePool()
 
-  const filters: Filter[] = [
-    { kinds: [1, 6, 7], '#p': [pubkey], since },  // replies, reposts, reactions
-    { kinds: [9735], '#p': [pubkey], since },       // zap receipts
-  ]
-
-  const events = await pool.querySync(relays, ...filters)
+  // querySync takes one filter at a time in nostr-tools 2.x — run both in parallel
+  const [engagementEvents, zapEvents] = await Promise.all([
+    pool.querySync(relays, { kinds: [1, 6, 7], '#p': [pubkey], since }),
+    pool.querySync(relays, { kinds: [9735], '#p': [pubkey], since }),
+  ])
+  const events = [...engagementEvents, ...zapEvents]
   pool.close(relays)
 
   const data = new Map<string, EngagementData>()
@@ -192,7 +192,7 @@ export async function fetchLastPostDates(
     })
     for (const event of events) {
       const current = result.get(event.pubkey)
-      if (current === null || event.created_at > current) {
+      if (current === null || event.created_at > (current ?? 0)) {
         result.set(event.pubkey, event.created_at)
       }
     }

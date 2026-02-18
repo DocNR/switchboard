@@ -129,7 +129,7 @@ Show progress indicator. ~15–60 seconds for large accounts.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  switchboard          npub1xy5...urc  [Disconnect]      │
+│  switchboard          npub1abc...xyz  [Disconnect]      │
 ├─────────────────────────────────────────────────────────┤
 │  Currently following: 1,266                              │
 ├─────────────────────────────────────────────────────────┤
