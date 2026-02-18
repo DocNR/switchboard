@@ -414,24 +414,16 @@ function AllowlistEditor({
   return (
     <div className="space-y-2">
       <div className="relative">
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={e => { setInput(e.target.value); setShowSuggestions(true) }}
-            onFocus={() => setShowSuggestions(true)}
-            onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-            placeholder={followProfiles.size > 0 ? 'Search by name or paste npub1…' : 'Paste npub1… or hex pubkey'}
-            className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm placeholder-zinc-600 min-w-0"
-          />
-          <button
-            onClick={() => handleAdd()}
-            className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
-          >
-            Add
-          </button>
-        </div>
+        <input
+          type="text"
+          value={input}
+          onChange={e => { setInput(e.target.value); setShowSuggestions(true) }}
+          onFocus={() => setShowSuggestions(true)}
+          onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          placeholder={followProfiles.size > 0 ? 'Search by name or paste npub1…' : 'Paste npub1… or hex pubkey'}
+          className="w-full bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm placeholder-zinc-600"
+        />
 
         {showSuggestions && suggestions.length > 0 && (
           <div className="absolute z-10 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg overflow-hidden shadow-xl">
