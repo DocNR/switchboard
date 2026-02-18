@@ -1,10 +1,11 @@
 'use client'
 
-// Landing page — shown before login
-// After login, window.nostr.js sets window.nostr and we redirect to /dashboard
+// Landing page — NIP-07 login
 //
-// TODO: Replace the redirect with proper app state management once
-// the dashboard page is built out.
+// Session stored in localStorage after login.
+// Only calls window.nostr on explicit button click (required for Safari —
+// calling getPublicKey() silently on mount triggers unprompted popups that
+// Safari blocks).
 
 import { useEffect, useState } from 'react'
 
@@ -12,24 +13,13 @@ export default function Home() {
   const [loggingIn, setLoggingIn] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Check if already logged in on page load
+  // Restore existing session from localStorage — no Nostr call needed
   useEffect(() => {
-    checkExistingLogin()
-  }, [])
-
-  async function checkExistingLogin() {
-    try {
-      // window.nostr is injected by the NIP-07 extension or window.nostr.js
-      if (typeof window !== 'undefined' && window.nostr) {
-        const pubkey = await window.nostr.getPublicKey()
-        if (pubkey) {
-          window.location.href = `/dashboard?pubkey=${pubkey}`
-        }
-      }
-    } catch {
-      // Not logged in yet — that's fine
+    const stored = localStorage.getItem('nostr_pubkey')
+    if (stored) {
+      window.location.href = '/dashboard'
     }
-  }
+  }, [])
 
   async function handleLogin() {
     setLoggingIn(true)
@@ -39,7 +29,8 @@ export default function Home() {
         throw new Error('No Nostr signer found. Install Alby or nos2x, or use a NIP-46 bunker.')
       }
       const pubkey = await window.nostr.getPublicKey()
-      window.location.href = `/dashboard?pubkey=${pubkey}`
+      localStorage.setItem('nostr_pubkey', pubkey)
+      window.location.href = '/dashboard'
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
       setLoggingIn(false)

@@ -220,6 +220,22 @@ export async function fetchAccountAge(
   return events.sort((a, b) => a.created_at - b.created_at)[0].created_at
 }
 
+// Fetch recent kind 1 notes by a pubkey, sorted newest first
+export async function fetchRecentNotes(
+  pubkey: string,
+  limit = 20,
+  relays = DEFAULT_RELAYS
+): Promise<Event[]> {
+  const pool = new SimplePool()
+  const events = await pool.querySync(relays, {
+    kinds: [1],
+    authors: [pubkey],
+    limit,
+  })
+  pool.close(relays)
+  return events.sort((a, b) => b.created_at - a.created_at)
+}
+
 // Build and return a pruned kind 3 event (unsigned) from an existing event
 // replacingPubkeys: pubkeys to remove from the follow list
 // addingPubkeys: pubkeys to add (with no relay hint or petname by default)
