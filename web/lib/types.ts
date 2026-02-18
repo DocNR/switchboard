@@ -44,7 +44,6 @@ export interface RemoveRule {
     | 'inactive_days'         // confirmed last post older than threshold days
     | 'not_found_on_relays'   // no posts found on queried relays (null lastPostAt)
     | 'no_zaps'               // total zaps in lookback window below threshold sats
-    | 'no_profile'            // no kind 0 profile found
     | 'never_engaged_me'      // zero engagement signals in lookback window
   threshold: number
 }
@@ -86,7 +85,6 @@ export const DEFAULT_RULES: Rules = {
     { enabled: true,  signal: 'inactive_days',       threshold: 180 },
     { enabled: false, signal: 'not_found_on_relays',  threshold: 0 },
     { enabled: false, signal: 'no_zaps',              threshold: 1 },
-    { enabled: false, signal: 'no_profile',           threshold: 0 },
     { enabled: false, signal: 'never_engaged_me',     threshold: 0 },
   ],
   allowlist: [],

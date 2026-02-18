@@ -39,9 +39,6 @@ function meetsRemoveRule(data: EngagementData, rule: RemoveRule): boolean {
       // threshold: 1 = remove anyone who hasn't zapped at all.
       return data.zapsSats < rule.threshold
 
-    case 'no_profile':
-      return data.accountCreatedAt === null
-
     case 'never_engaged_me':
       return (
         data.replyCount === 0 &&

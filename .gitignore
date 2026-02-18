@@ -17,6 +17,9 @@ web/out/
 .vscode/
 .idea/
 
+# Claude Code agent memory
+.claude/agent-memory/
+
 # temp files from prune.sh
 pruned.json
 dormant.txt

@@ -17,7 +17,6 @@ const REMOVE_META: Record<string, { label: string; unit: string; hasThreshold: b
   inactive_days:       { label: 'Confirmed inactive — last post older than',  unit: 'days', hasThreshold: true  },
   not_found_on_relays: { label: 'Not found on any queried relay',             unit: '',     hasThreshold: false, risky: true },
   no_zaps:             { label: 'Zapped me less than',                        unit: 'sats', hasThreshold: true  },
-  no_profile:          { label: 'No profile set up',                          unit: '',     hasThreshold: false },
   never_engaged_me:    { label: 'Never engaged with me (in lookback window)', unit: '',     hasThreshold: false },
 }
 
@@ -90,9 +89,6 @@ export default function RulesBuilder({
   return (
     <div className="space-y-6">
 
-      {/* ── Rules card: lookback + ADD + REMOVE + allowlist ── */}
-      <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-4">
-
       {/* Lookback window */}
       <div className="flex items-center gap-3">
         <span className="text-zinc-400 text-sm">Lookback window</span>
@@ -103,17 +99,15 @@ export default function RulesBuilder({
           className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-center"
           min={1} max={365}
         />
-        <span className="text-zinc-500 text-sm">days (ADD rules + engagement REMOVE rules)</span>
+        <span className="text-zinc-500 text-sm">days</span>
       </div>
-      <p className="text-zinc-700 text-xs">
-        Changing this requires a re-analysis. All other rule thresholds apply instantly.
-      </p>
 
-      <hr className="border-zinc-800" />
-
-      {/* ADD rules */}
-      <div className="space-y-2">
-        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Add rules — auto-follow engagers</p>
+      {/* ── Auto-Follow ── */}
+      <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-2">
+        <div className="mb-1">
+          <p className="text-zinc-200 text-sm font-semibold">Auto-Follow</p>
+          <p className="text-zinc-600 text-xs">Follow accounts that engage with you</p>
+        </div>
         {rules.add.map((rule, i) => {
           const meta = ADD_META[rule.signal]
           return (
@@ -127,7 +121,7 @@ export default function RulesBuilder({
               <span className={`text-sm flex-1 ${rule.enabled ? 'text-zinc-300' : 'text-zinc-600'}`}>
                 {meta.label}
               </span>
-              <span className="text-zinc-600 text-xs">≥</span>
+              <span className="text-zinc-600 text-xs">&ge;</span>
               <input
                 type="number"
                 value={rule.threshold}
@@ -156,13 +150,12 @@ export default function RulesBuilder({
         </div>
       </div>
 
-      <hr className="border-zinc-800" />
-
-      {/* REMOVE rules */}
-      <div className="space-y-2">
-        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">
-          Remove rules — match ANY enabled rule to trigger removal
-        </p>
+      {/* ── Prune ── */}
+      <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-2">
+        <div className="mb-1">
+          <p className="text-zinc-200 text-sm font-semibold">Prune</p>
+          <p className="text-zinc-600 text-xs">Unfollow if any enabled rule matches</p>
+        </div>
         {rules.remove.map((rule, i) => {
           const meta = REMOVE_META[rule.signal]
           return (
@@ -176,7 +169,7 @@ export default function RulesBuilder({
                 />
                 <span className={`text-sm flex-1 ${rule.enabled ? (meta.risky ? 'text-amber-400' : 'text-zinc-300') : 'text-zinc-600'}`}>
                   {meta.label}
-                  {meta.risky && <span className="text-amber-600 text-xs ml-1">(high false positive risk)</span>}
+                  {meta.risky && <span className="text-amber-600 text-xs ml-1">(risky)</span>}
                 </span>
                 {meta.hasThreshold ? (
                   <>
@@ -201,18 +194,19 @@ export default function RulesBuilder({
         })}
       </div>
 
-      <hr className="border-zinc-800" />
-
-      {/* Allowlist */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Never remove</p>
+      {/* ── Allowlist ── */}
+      <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-2">
+        <div className="flex items-center justify-between mb-1">
+          <div>
+            <p className="text-zinc-200 text-sm font-semibold">Allowlist</p>
+            <p className="text-zinc-600 text-xs">These accounts are never pruned</p>
+          </div>
           <button
             onClick={onSaveAllowlist}
             disabled={allowlistSaving || allowlistSaved}
             className="text-xs px-2.5 py-1 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
           >
-            {allowlistSaving ? 'Saving…' : allowlistSaved ? '✓ Saved to Nostr' : 'Save to Nostr'}
+            {allowlistSaving ? 'Saving…' : allowlistSaved ? 'Saved' : 'Save to Nostr'}
           </button>
         </div>
         <AllowlistEditor
@@ -228,10 +222,7 @@ export default function RulesBuilder({
           }}
           onRemove={pk => onChange({ ...rules, allowlist: rules.allowlist.filter(p => p !== pk) })}
         />
-        <p className="text-zinc-700 text-xs">Loaded from and saved to a NIP-51 follow set on your relays.</p>
       </div>
-
-      </div>{/* end rules card */}
 
       {/* Relay settings */}
       <div className="space-y-2">
