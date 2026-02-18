@@ -23,11 +23,25 @@ function meetsRemoveRule(data: EngagementData, rule: RemoveRule): boolean {
   if (!rule.enabled) return false
   switch (rule.signal) {
     case 'inactive_days':
-      // Remove if no post found within threshold days
-      if (data.lastPostAt === null) return true
+      // Only remove if we actually found a post and it's old.
+      // null = not found on queried relays → "unknown", not "inactive".
+      // Use the separate 'not_found_on_relays' rule to target unfindable accounts.
+      if (data.lastPostAt === null) return false
       return daysSince(data.lastPostAt) > rule.threshold
+
+    case 'not_found_on_relays':
+      // Explicit opt-in to remove accounts with no posts found on any queried relay.
+      // High false-positive risk for accounts that post to other relays.
+      return data.lastPostAt === null
+
+    case 'no_zaps':
+      // Remove follows whose total zaps to you (in the lookback window) are below threshold.
+      // threshold: 1 = remove anyone who hasn't zapped at all.
+      return data.zapsSats < rule.threshold
+
     case 'no_profile':
       return data.accountCreatedAt === null
+
     case 'never_engaged_me':
       return (
         data.replyCount === 0 &&
@@ -63,13 +77,13 @@ export function evaluate(
   // Person meets engagement criteria and account is old enough → add
   if (qualifiesForAdd && accountOldEnough && !isCurrentFollow) return 'ADD'
 
-  // Existing follow: check if they should be removed
+  // Existing follow: check if they should be removed.
+  // REMOVE rules are OR'd: matching ANY enabled rule is enough to trigger removal.
+  // Exception: if they also qualify to be added, engagement overrides removal.
   if (isCurrentFollow) {
     const qualifiesForRemove = rules.remove
-      .filter(r => r.enabled)
-      .every(rule => meetsRemoveRule(data, rule))
+      .some(rule => meetsRemoveRule(data, rule))
 
-    // Don't remove if they also qualify to be added (engagement overrides inactivity)
     if (qualifiesForRemove && !qualifiesForAdd) return 'REMOVE'
   }
 

@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { nip19 } from 'nostr-tools'
 import type { Rules, AddRule, RemoveRule } from '@/lib/types'
-import { summarize } from '@/lib/rules'
 
 const ADD_META: Record<string, { label: string; unit: string }> = {
   replies:   { label: 'Replied to me',  unit: 'times' },
@@ -13,10 +12,12 @@ const ADD_META: Record<string, { label: string; unit: string }> = {
   reactions: { label: 'Reacted to me', unit: 'times' },
 }
 
-const REMOVE_META: Record<string, { label: string; unit: string; hasThreshold: boolean }> = {
-  inactive_days:    { label: "Hasn't posted in",      unit: 'days', hasThreshold: true  },
-  no_profile:       { label: 'No profile set up',     unit: '',     hasThreshold: false },
-  never_engaged_me: { label: 'Never engaged with me', unit: '',     hasThreshold: false },
+const REMOVE_META: Record<string, { label: string; unit: string; hasThreshold: boolean; risky?: boolean }> = {
+  inactive_days:       { label: 'Confirmed inactive — last post older than',  unit: 'days', hasThreshold: true  },
+  not_found_on_relays: { label: 'Not found on any queried relay',             unit: '',     hasThreshold: false, risky: true },
+  no_zaps:             { label: 'Zapped me less than',                        unit: 'sats', hasThreshold: true  },
+  no_profile:          { label: 'No profile set up',                          unit: '',     hasThreshold: false },
+  never_engaged_me:    { label: 'Never engaged with me (in lookback window)', unit: '',     hasThreshold: false },
 }
 
 interface Summary {
@@ -31,6 +32,9 @@ interface Summary {
 interface RulesBuilderProps {
   rules: Rules
   onChange: (rules: Rules) => void
+  relays: string[]
+  onRelaysChange: (relays: string[]) => void
+  onDetectRelays: () => Promise<void>
   summary: Summary
   loaded: boolean
   loading: boolean
@@ -42,6 +46,9 @@ interface RulesBuilderProps {
 export default function RulesBuilder({
   rules,
   onChange,
+  relays,
+  onRelaysChange,
+  onDetectRelays,
   summary,
   loaded,
   loading,
@@ -49,6 +56,9 @@ export default function RulesBuilder({
   onLoad,
   onPreview,
 }: RulesBuilderProps) {
+  const [showRelays, setShowRelays] = useState(false)
+  const [detectingRelays, setDetectingRelays] = useState(false)
+
   function updateAdd(index: number, patch: Partial<AddRule>) {
     onChange({ ...rules, add: rules.add.map((r, i) => i === index ? { ...r, ...patch } : r) })
   }
@@ -57,9 +67,13 @@ export default function RulesBuilder({
     onChange({ ...rules, remove: rules.remove.map((r, i) => i === index ? { ...r, ...patch } : r) })
   }
 
+  async function handleDetectRelays() {
+    setDetectingRelays(true)
+    try { await onDetectRelays() } finally { setDetectingRelays(false) }
+  }
+
   const hasChanges = summary.removing > 0 || summary.adding > 0
-  const enabledAddRules = rules.add.filter(r => r.enabled).length
-  const enabledRemoveRules = rules.remove.filter(r => r.enabled).length
+  const enabledRules = [...rules.add, ...rules.remove].filter(r => r.enabled).length
 
   return (
     <div className="space-y-6">
@@ -74,7 +88,7 @@ export default function RulesBuilder({
           className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-center"
           min={1} max={365}
         />
-        <span className="text-zinc-500 text-sm">days (ADD rules)</span>
+        <span className="text-zinc-500 text-sm">days (ADD rules + engagement REMOVE rules)</span>
       </div>
 
       {/* ADD rules */}
@@ -124,38 +138,43 @@ export default function RulesBuilder({
 
       {/* REMOVE rules */}
       <div className="space-y-2">
-        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Remove rules — prune inactive follows</p>
+        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">
+          Remove rules — match ANY enabled rule to trigger removal
+        </p>
         {rules.remove.map((rule, i) => {
           const meta = REMOVE_META[rule.signal]
           return (
-            <label key={rule.signal} className="flex items-center gap-3 py-0.5 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={rule.enabled}
-                onChange={e => updateRemove(i, { enabled: e.target.checked })}
-                className="w-4 h-4 flex-shrink-0 accent-purple-500"
-              />
-              <span className={`text-sm flex-1 ${rule.enabled ? 'text-zinc-300' : 'text-zinc-600'}`}>
-                {meta.label}
-              </span>
-              {meta.hasThreshold ? (
-                <>
-                  <input
-                    type="number"
-                    value={rule.threshold}
-                    disabled={!rule.enabled}
-                    onChange={e => updateRemove(i, { threshold: Math.max(1, parseInt(e.target.value) || 1) })}
-                    className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-right disabled:opacity-30 disabled:cursor-not-allowed"
-                    min={1}
-                  />
-                  <span className={`text-xs w-8 flex-shrink-0 ${rule.enabled ? 'text-zinc-500' : 'text-zinc-700'}`}>
-                    {meta.unit}
-                  </span>
-                </>
-              ) : (
-                <div className="w-28 flex-shrink-0" /> /* spacer to align checkboxes */
-              )}
-            </label>
+            <div key={rule.signal}>
+              <label className="flex items-center gap-3 py-0.5 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={rule.enabled}
+                  onChange={e => updateRemove(i, { enabled: e.target.checked })}
+                  className="w-4 h-4 flex-shrink-0 accent-purple-500"
+                />
+                <span className={`text-sm flex-1 ${rule.enabled ? (meta.risky ? 'text-amber-400' : 'text-zinc-300') : 'text-zinc-600'}`}>
+                  {meta.label}
+                  {meta.risky && <span className="text-amber-600 text-xs ml-1">(high false positive risk)</span>}
+                </span>
+                {meta.hasThreshold ? (
+                  <>
+                    <input
+                      type="number"
+                      value={rule.threshold}
+                      disabled={!rule.enabled}
+                      onChange={e => updateRemove(i, { threshold: Math.max(0, parseInt(e.target.value) || 0) })}
+                      className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-right disabled:opacity-30 disabled:cursor-not-allowed"
+                      min={0}
+                    />
+                    <span className={`text-xs w-8 flex-shrink-0 ${rule.enabled ? 'text-zinc-500' : 'text-zinc-700'}`}>
+                      {meta.unit}
+                    </span>
+                  </>
+                ) : (
+                  <div className="w-28 flex-shrink-0" />
+                )}
+              </label>
+            </div>
           )
         })}
       </div>
@@ -177,28 +196,47 @@ export default function RulesBuilder({
         />
       </div>
 
+      {/* Relay settings */}
+      <div className="space-y-2">
+        <button
+          onClick={() => setShowRelays(v => !v)}
+          className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-xs transition-colors"
+        >
+          <span>{showRelays ? '▾' : '▸'}</span>
+          <span className="font-medium uppercase tracking-wider">
+            Relay settings — {relays.length} relay{relays.length !== 1 ? 's' : ''} queried
+          </span>
+        </button>
+
+        {showRelays && (
+          <RelayEditor
+            relays={relays}
+            onChange={onRelaysChange}
+            onDetect={handleDetectRelays}
+            detecting={detectingRelays}
+          />
+        )}
+      </div>
+
       {/* Load / Loading / Summary */}
       <div className="pt-2 space-y-4">
         {loading ? (
-          <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-2">
+          <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4">
             <div className="flex items-center gap-3">
               <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-              <p className="text-zinc-400 text-sm">{loadStep || 'Loading...'}</p>
+              <p className="text-zinc-400 text-sm">{loadStep || 'Loading…'}</p>
             </div>
           </div>
         ) : !loaded ? (
           <button
             onClick={onLoad}
-            disabled={enabledAddRules + enabledRemoveRules === 0}
+            disabled={enabledRules === 0}
             className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors"
           >
-            {enabledAddRules + enabledRemoveRules === 0
-              ? 'Enable at least one rule to analyze'
-              : 'Analyze My Follows →'}
+            {enabledRules === 0 ? 'Enable at least one rule to analyze' : 'Analyze My Follows →'}
           </button>
         ) : (
           <>
-            {/* Live summary */}
             <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 grid grid-cols-3 gap-3 text-center">
               <div>
                 <div className="text-2xl font-bold text-red-400 tabular-nums">{summary.removing}</div>
@@ -241,6 +279,8 @@ export default function RulesBuilder({
   )
 }
 
+// ─── sub-components ───────────────────────────────────────────────────────
+
 function AllowlistEditor({
   allowlist,
   onAdd,
@@ -281,10 +321,9 @@ function AllowlistEditor({
       )}
       {allowlist.map(pk => {
         const npub = nip19.npubEncode(pk)
-        const short = `${npub.slice(0, 10)}…${npub.slice(-6)}`
         return (
           <div key={pk} className="flex items-center justify-between">
-            <span className="text-zinc-400 text-sm font-mono">{short}</span>
+            <span className="text-zinc-400 text-sm font-mono">{`${npub.slice(0, 10)}…${npub.slice(-6)}`}</span>
             <button
               onClick={() => onRemove(pk)}
               className="text-zinc-600 hover:text-red-400 text-xs transition-colors ml-3"
@@ -294,6 +333,77 @@ function AllowlistEditor({
           </div>
         )
       })}
+    </div>
+  )
+}
+
+function RelayEditor({
+  relays,
+  onChange,
+  onDetect,
+  detecting,
+}: {
+  relays: string[]
+  onChange: (relays: string[]) => void
+  onDetect: () => void
+  detecting: boolean
+}) {
+  const [input, setInput] = useState('')
+
+  function handleAdd() {
+    const url = input.trim()
+    if (!url) return
+    const normalized = url.startsWith('wss://') || url.startsWith('ws://') ? url : `wss://${url}`
+    if (!relays.includes(normalized)) onChange([...relays, normalized])
+    setInput('')
+  }
+
+  return (
+    <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-3">
+      <p className="text-zinc-600 text-xs">
+        Accounts that only post to relays not listed here will appear inactive.
+        Add relays your community uses to reduce false positives.
+      </p>
+
+      <div className="space-y-1">
+        {relays.map(relay => (
+          <div key={relay} className="flex items-center justify-between py-0.5">
+            <span className="text-zinc-400 text-sm font-mono truncate">{relay.replace('wss://', '')}</span>
+            <button
+              onClick={() => onChange(relays.filter(r => r !== relay))}
+              disabled={relays.length <= 1}
+              className="text-zinc-600 hover:text-red-400 text-xs transition-colors ml-3 flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+            >
+              Remove
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && handleAdd()}
+          placeholder="relay.example.com"
+          className="flex-1 bg-zinc-800 border border-zinc-700 rounded px-3 py-1.5 text-sm placeholder-zinc-600 min-w-0"
+        />
+        <button
+          onClick={handleAdd}
+          className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded text-sm transition-colors flex-shrink-0"
+        >
+          Add
+        </button>
+      </div>
+
+      <button
+        onClick={onDetect}
+        disabled={detecting}
+        className="w-full py-2 px-3 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 text-xs transition-colors disabled:opacity-50"
+      >
+        {detecting ? 'Detecting…' : 'Auto-detect from extension'}
+      </button>
     </div>
   )
 }

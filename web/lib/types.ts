@@ -25,7 +25,7 @@ export interface EngagementData {
   quoteCount: number         // kind 1 with #q tag on your notes
   reactionCount: number      // kind 7 reactions to your notes
   zapsSats: number           // total sats zapped to you (from kind 9735)
-  lastPostAt: number | null  // unix timestamp of their most recent kind 1/6
+  lastPostAt: number | null  // unix timestamp of their most recent kind 1/6; null = not found on queried relays
   accountCreatedAt: number | null  // earliest known event timestamp (account age proxy)
 }
 
@@ -37,15 +37,21 @@ export interface AddRule {
 }
 
 // A single REMOVE rule — if a current follow meets this, remove them
+// Multiple REMOVE rules are OR'd: matching ANY enabled rule triggers removal.
 export interface RemoveRule {
   enabled: boolean
-  signal: 'inactive_days' | 'no_profile' | 'never_engaged_me'
+  signal:
+    | 'inactive_days'         // confirmed last post older than threshold days
+    | 'not_found_on_relays'   // no posts found on queried relays (null lastPostAt)
+    | 'no_zaps'               // total zaps in lookback window below threshold sats
+    | 'no_profile'            // no kind 0 profile found
+    | 'never_engaged_me'      // zero engagement signals in lookback window
   threshold: number
 }
 
 // The full rules configuration
 export interface Rules {
-  windowDays: number        // lookback window for engagement signals (ADD rules)
+  windowDays: number        // lookback window for engagement signals (ADD rules + zap/engagement REMOVE rules)
   minAccountAgeDays: number // minimum account age in days before auto-adding
   add: AddRule[]
   remove: RemoveRule[]
@@ -63,7 +69,7 @@ export interface EvalledPubkey {
   isCurrentFollow: boolean
 }
 
-// Default rules — safe starting point
+// Default rules — conservative starting point to minimise false positives
 export const DEFAULT_RULES: Rules = {
   windowDays: 30,
   minAccountAgeDays: 60,
@@ -75,9 +81,13 @@ export const DEFAULT_RULES: Rules = {
     { enabled: false, signal: 'reactions', threshold: 20 },
   ],
   remove: [
-    { enabled: true,  signal: 'inactive_days',    threshold: 180 },
-    { enabled: false, signal: 'no_profile',        threshold: 0 },
-    { enabled: false, signal: 'never_engaged_me',  threshold: 0 },
+    // Safe default: only remove if we confirmed a post exists but it's old.
+    // "not_found_on_relays" is intentionally off — null = unknown, not inactive.
+    { enabled: true,  signal: 'inactive_days',       threshold: 180 },
+    { enabled: false, signal: 'not_found_on_relays',  threshold: 0 },
+    { enabled: false, signal: 'no_zaps',              threshold: 1 },
+    { enabled: false, signal: 'no_profile',           threshold: 0 },
+    { enabled: false, signal: 'never_engaged_me',     threshold: 0 },
   ],
   allowlist: [],
 }

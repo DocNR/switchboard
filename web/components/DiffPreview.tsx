@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import { nip19 } from 'nostr-tools'
 import type { EvalledPubkey, Profile, EngagementData } from '@/lib/types'
 
@@ -28,16 +29,78 @@ export default function DiffPreview({
   publishing,
   publishError,
 }: DiffPreviewProps) {
+  const [confirming, setConfirming] = useState(false)
+
   const removes = evalled.filter(e => e.result === 'REMOVE')
   const adds = evalled.filter(e => e.result === 'ADD')
   const tooNew = evalled.filter(e => e.result === 'TOO_NEW')
+
+  // Split removes into two risk categories
+  const confirmedInactive = removes.filter(e => e.engagement?.lastPostAt !== null)
+  const notFoundOnRelays = removes.filter(e => e.engagement?.lastPostAt === null)
 
   const finalRemoveCount = removes.filter(e => !keepOverrides.has(e.pubkey)).length
   const finalAddCount = adds.filter(e => !skipOverrides.has(e.pubkey)).length
   const noChanges = finalRemoveCount === 0 && finalAddCount === 0
 
+  function handleApplyClick() {
+    if (noChanges) return
+    setConfirming(true)
+  }
+
+  function handleConfirm() {
+    setConfirming(false)
+    onApply()
+  }
+
   return (
     <div className="space-y-6">
+
+      {/* Confirmation dialog */}
+      {confirming && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+          <div className="bg-zinc-900 border border-zinc-700 rounded-xl p-6 max-w-sm w-full space-y-4">
+            <h2 className="text-lg font-bold">Apply changes?</h2>
+            <p className="text-zinc-400 text-sm">This will publish a new follow list:</p>
+            <div className="space-y-1">
+              {finalRemoveCount > 0 && (
+                <p className="text-sm">
+                  <span className="text-red-400 font-medium">−{finalRemoveCount}</span>
+                  <span className="text-zinc-400"> unfollows</span>
+                  {notFoundOnRelays.filter(e => !keepOverrides.has(e.pubkey)).length > 0 && (
+                    <span className="text-amber-500 text-xs ml-2">
+                      (includes {notFoundOnRelays.filter(e => !keepOverrides.has(e.pubkey)).length} not found on relays)
+                    </span>
+                  )}
+                </p>
+              )}
+              {finalAddCount > 0 && (
+                <p className="text-sm">
+                  <span className="text-green-400 font-medium">+{finalAddCount}</span>
+                  <span className="text-zinc-400"> new follows</span>
+                </p>
+              )}
+            </div>
+            <p className="text-zinc-600 text-xs">
+              This publishes a new kind 3 event and cannot be undone without re-adding accounts manually.
+            </p>
+            <div className="flex gap-3 pt-1">
+              <button
+                onClick={() => setConfirming(false)}
+                className="flex-1 py-2.5 px-4 rounded-lg border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirm}
+                className="flex-1 py-2.5 px-4 rounded-lg bg-purple-600 hover:bg-purple-500 text-sm font-medium transition-colors"
+              >
+                Confirm & Sign
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Summary */}
       <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 grid grid-cols-3 gap-3 text-center">
@@ -57,27 +120,19 @@ export default function DiffPreview({
         </div>
       </div>
 
-      <div className="rounded-lg bg-amber-950/40 border border-amber-900/60 px-3 py-2.5 space-y-1">
-        <p className="text-amber-400 text-xs font-medium">⚠ False positive risk</p>
-        <p className="text-amber-500/70 text-xs">
-          &ldquo;Not found on queried relays&rdquo; is not the same as inactive. Anyone who
-          primarily posts to relays outside the 5 queried here will appear silent.
-          Use <span className="font-mono">[keep]</span> to override individual removals.
-        </p>
-      </div>
-
-      {/* Remove list */}
-      {removes.length > 0 && (
-        <Section title={`Removing (${removes.length})`}>
-          {removes.map(({ pubkey, engagement }) => {
+      {/* Confirmed inactive removes */}
+      {confirmedInactive.length > 0 && (
+        <Section
+          title={`Confirmed inactive (${confirmedInactive.length})`}
+          note="Last post found but older than your threshold."
+        >
+          {confirmedInactive.map(({ pubkey, engagement }) => {
             const kept = keepOverrides.has(pubkey)
-            const name = displayName(pubkey, profiles.get(pubkey))
-            const pic = profiles.get(pubkey)?.picture
             return (
               <Row
                 key={pubkey}
-                name={name}
-                picture={pic}
+                name={displayName(pubkey, profiles.get(pubkey))}
+                picture={profiles.get(pubkey)?.picture}
                 subtitle={removeReason(engagement)}
                 dimmed={kept}
                 action={kept ? 'undo' : 'keep'}
@@ -88,18 +143,51 @@ export default function DiffPreview({
         </Section>
       )}
 
-      {/* Add list */}
+      {/* Not found on relays — higher risk section */}
+      {notFoundOnRelays.length > 0 && (
+        <Section
+          title={`Not found on queried relays (${notFoundOnRelays.length})`}
+          note="⚠ Higher false positive risk — these accounts may post to other relays. Review carefully or use [keep]."
+          noteClass="text-amber-500/80"
+        >
+          {notFoundOnRelays.map(({ pubkey }) => {
+            const kept = keepOverrides.has(pubkey)
+            return (
+              <Row
+                key={pubkey}
+                name={displayName(pubkey, profiles.get(pubkey))}
+                picture={profiles.get(pubkey)?.picture}
+                subtitle="not found on queried relays"
+                subtitleClass="text-amber-700"
+                dimmed={kept}
+                action={kept ? 'undo' : 'keep'}
+                onAction={() => onKeepToggle(pubkey)}
+              />
+            )
+          })}
+          {notFoundOnRelays.filter(e => !keepOverrides.has(e.pubkey)).length > 0 && (
+            <button
+              onClick={() => notFoundOnRelays.forEach(e => {
+                if (!keepOverrides.has(e.pubkey)) onKeepToggle(e.pubkey)
+              })}
+              className="w-full py-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors border border-dashed border-zinc-800 rounded-lg"
+            >
+              Keep all not-found ({notFoundOnRelays.filter(e => !keepOverrides.has(e.pubkey)).length})
+            </button>
+          )}
+        </Section>
+      )}
+
+      {/* Adding */}
       {adds.length > 0 && (
         <Section title={`Adding (${adds.length})`}>
           {adds.map(({ pubkey, engagement }) => {
             const skipped = skipOverrides.has(pubkey)
-            const name = displayName(pubkey, profiles.get(pubkey))
-            const pic = profiles.get(pubkey)?.picture
             return (
               <Row
                 key={pubkey}
-                name={name}
-                picture={pic}
+                name={displayName(pubkey, profiles.get(pubkey))}
+                picture={profiles.get(pubkey)?.picture}
                 subtitle={formatEngagement(engagement)}
                 dimmed={skipped}
                 action={skipped ? 'undo' : 'skip'}
@@ -113,20 +201,16 @@ export default function DiffPreview({
       {/* Too new */}
       {tooNew.length > 0 && (
         <Section title={`Too new to add (${tooNew.length})`}>
-          {tooNew.map(({ pubkey, engagement }) => {
-            const name = displayName(pubkey, profiles.get(pubkey))
-            const pic = profiles.get(pubkey)?.picture
-            return (
-              <Row
-                key={pubkey}
-                name={name}
-                picture={pic}
-                subtitle={formatEngagement(engagement)}
-                dimmed
-                badge="account too new"
-              />
-            )
-          })}
+          {tooNew.map(({ pubkey, engagement }) => (
+            <Row
+              key={pubkey}
+              name={displayName(pubkey, profiles.get(pubkey))}
+              picture={profiles.get(pubkey)?.picture}
+              subtitle={formatEngagement(engagement)}
+              dimmed
+              badge="account too new"
+            />
+          ))}
         </Section>
       )}
 
@@ -134,7 +218,6 @@ export default function DiffPreview({
         <p className="text-zinc-600 text-sm text-center py-4">No changes to show.</p>
       )}
 
-      {/* Publish error */}
       {publishError && (
         <p className="text-red-400 text-sm text-center">{publishError}</p>
       )}
@@ -149,14 +232,14 @@ export default function DiffPreview({
           ← Back
         </button>
         <button
-          onClick={onApply}
+          onClick={handleApplyClick}
           disabled={publishing || noChanges}
           className="flex-1 py-3 px-4 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed text-sm font-medium transition-colors"
         >
           {publishing ? (
             <span className="flex items-center justify-center gap-2">
               <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              Signing...
+              Signing…
             </span>
           ) : 'Apply Changes →'}
         </button>
@@ -166,10 +249,23 @@ export default function DiffPreview({
   )
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+// ─── sub-components ───────────────────────────────────────────────────────
+
+function Section({
+  title,
+  note,
+  noteClass = 'text-zinc-600',
+  children,
+}: {
+  title: string
+  note?: string
+  noteClass?: string
+  children: React.ReactNode
+}) {
   return (
     <div className="space-y-2">
       <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">{title}</p>
+      {note && <p className={`text-xs ${noteClass}`}>{note}</p>}
       <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
         {children}
       </div>
@@ -181,6 +277,7 @@ function Row({
   name,
   picture,
   subtitle,
+  subtitleClass = 'text-zinc-600',
   dimmed,
   action,
   onAction,
@@ -189,6 +286,7 @@ function Row({
   name: string
   picture?: string
   subtitle?: string
+  subtitleClass?: string
   dimmed?: boolean
   action?: string
   onAction?: () => void
@@ -208,7 +306,7 @@ function Row({
       )}
       <div className="min-w-0 flex-1">
         <p className="text-sm text-zinc-300 truncate">{name}</p>
-        {subtitle && <p className="text-xs text-zinc-600 mt-0.5">{subtitle}</p>}
+        {subtitle && <p className={`text-xs mt-0.5 ${subtitleClass}`}>{subtitle}</p>}
       </div>
       {badge && <span className="text-xs text-zinc-600 flex-shrink-0">{badge}</span>}
       {action && onAction && (
@@ -223,6 +321,8 @@ function Row({
   )
 }
 
+// ─── helpers ─────────────────────────────────────────────────────────────
+
 function displayName(pubkey: string, profile?: Profile): string {
   if (profile?.displayName) return profile.displayName
   if (profile?.name) return profile.name
@@ -231,8 +331,7 @@ function displayName(pubkey: string, profile?: Profile): string {
 }
 
 function removeReason(data?: EngagementData): string {
-  if (!data) return 'not found on queried relays'
-  if (data.lastPostAt === null) return 'not found on queried relays'
+  if (!data || data.lastPostAt === null) return 'not found on queried relays'
   const days = Math.floor((Date.now() / 1000 - data.lastPostAt) / (60 * 60 * 24))
   if (days < 30) return `last post: ${days}d ago`
   if (days < 365) return `last post: ${Math.floor(days / 30)}mo ago`
@@ -242,10 +341,10 @@ function removeReason(data?: EngagementData): string {
 function formatEngagement(data?: EngagementData): string {
   if (!data) return ''
   const parts: string[] = []
-  if (data.replyCount > 0)   parts.push(`${data.replyCount} ${data.replyCount === 1 ? 'reply' : 'replies'}`)
-  if (data.zapsSats > 0)     parts.push(`${data.zapsSats.toLocaleString()} sats`)
-  if (data.repostCount > 0)  parts.push(`${data.repostCount} ${data.repostCount === 1 ? 'repost' : 'reposts'}`)
-  if (data.quoteCount > 0)   parts.push(`${data.quoteCount} ${data.quoteCount === 1 ? 'quote' : 'quotes'}`)
+  if (data.replyCount > 0)    parts.push(`${data.replyCount} ${data.replyCount === 1 ? 'reply' : 'replies'}`)
+  if (data.zapsSats > 0)      parts.push(`${data.zapsSats.toLocaleString()} sats`)
+  if (data.repostCount > 0)   parts.push(`${data.repostCount} ${data.repostCount === 1 ? 'repost' : 'reposts'}`)
+  if (data.quoteCount > 0)    parts.push(`${data.quoteCount} ${data.quoteCount === 1 ? 'quote' : 'quotes'}`)
   if (data.reactionCount > 0) parts.push(`${data.reactionCount} ${data.reactionCount === 1 ? 'reaction' : 'reactions'}`)
   return parts.join(' · ')
 }

@@ -55,6 +55,9 @@ export default function DashboardPage() {
   // ── auth ──
   const [pubkey, setPubkey] = useState('')
 
+  // ── relays ──
+  const [relays, setRelays] = useState<string[]>(DEFAULT_RELAYS)
+
   // ── phase 1: profile ──
   const [profile, setProfile] = useState<Profile | null>(null)
   const [follows, setFollows] = useState<Follow[]>([])
@@ -90,7 +93,33 @@ export default function DashboardPage() {
     if (!stored) { window.location.href = '/'; return }
     setPubkey(stored)
     loadProfile(stored)
+
+    const storedRelays = localStorage.getItem('nostr_relays')
+    if (storedRelays) {
+      try { setRelays(JSON.parse(storedRelays)) } catch { /* ignore */ }
+    }
   }, [])
+
+  function handleRelaysChange(newRelays: string[]) {
+    setRelays(newRelays)
+    localStorage.setItem('nostr_relays', JSON.stringify(newRelays))
+    // If data was already loaded with different relays, mark as stale
+    if (analysisPhase === 'ready') setAnalysisPhase('idle')
+  }
+
+  async function handleDetectRelays() {
+    if (!window.nostr?.getRelays) return
+    try {
+      const relayMap = await window.nostr.getRelays()
+      const writeRelays = Object.entries(relayMap)
+        .filter(([, policy]) => policy.write)
+        .map(([url]) => url)
+      if (writeRelays.length > 0) {
+        const merged = [...new Set([...DEFAULT_RELAYS, ...writeRelays])]
+        handleRelaysChange(merged)
+      }
+    } catch { /* extension doesn't support getRelays */ }
+  }
 
   // Re-evaluate whenever rules or loaded data changes
   useEffect(() => {
@@ -105,9 +134,9 @@ export default function DashboardPage() {
     setProfileLoading(true)
     try {
       const [profileMap, { follows: fl, rawEvent: re }, recentNotes] = await Promise.all([
-        fetchProfiles([pk]),
-        fetchFollowList(pk),
-        fetchRecentNotes(pk, 30),
+        fetchProfiles([pk], relays),
+        fetchFollowList(pk, relays),
+        fetchRecentNotes(pk, 30, relays),
       ])
       const cutoff = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60
       setProfile(profileMap.get(pk) ?? null)
@@ -127,19 +156,19 @@ export default function DashboardPage() {
     try {
       // 1. Fetch engagement events (who engaged with the user in the window)
       setLoadStep('Fetching your engagement data…')
-      const engagementMap = await fetchEngagementData(pubkey, rules.windowDays)
+      const engagementMap = await fetchEngagementData(pubkey, rules.windowDays, relays)
 
       // 2. Fetch last post dates for all current follows
       const followPubkeys = follows.map(f => f.pubkey)
       setLoadStep(`Checking ${followPubkeys.length.toLocaleString()} follows for recent activity…`)
-      const lastPostDates = await fetchLastPostDates(followPubkeys, 400)
+      const lastPostDates = await fetchLastPostDates(followPubkeys, 400, relays)
 
       // 3. Fetch profiles for non-follow engagers (account age proxy via profile.createdAt)
       const followSet = new Set(followPubkeys)
       const engagerPubkeys = [...engagementMap.keys()].filter(pk => !followSet.has(pk))
       if (engagerPubkeys.length > 0) {
         setLoadStep(`Checking ${engagerPubkeys.length} engager account ages…`)
-        const engagerProfiles = await fetchProfiles(engagerPubkeys)
+        const engagerProfiles = await fetchProfiles(engagerPubkeys, relays)
         for (const [pk, p] of engagerProfiles) {
           const data = engagementMap.get(pk)
           if (data && p.createdAt) data.accountCreatedAt = p.createdAt
@@ -185,7 +214,7 @@ export default function DashboardPage() {
       const candidates = evalled
         .filter(e => e.result === 'ADD' || e.result === 'REMOVE' || e.result === 'TOO_NEW')
         .map(e => e.pubkey)
-      const profileMap = await fetchProfiles(candidates)
+      const profileMap = await fetchProfiles(candidates, relays)
       setPreviewProfiles(profileMap)
       setKeepOverrides(new Set())
       setSkipOverrides(new Set())
@@ -328,6 +357,9 @@ export default function DashboardPage() {
           <RulesBuilder
             rules={rules}
             onChange={setRules}
+            relays={relays}
+            onRelaysChange={handleRelaysChange}
+            onDetectRelays={handleDetectRelays}
             summary={summary}
             loaded={analysisPhase === 'ready'}
             loading={analysisPhase === 'loading'}
