@@ -35,10 +35,10 @@ export default function DiffPreview({
   const adds = evalled.filter(e => e.result === 'ADD')
   const tooNew = evalled.filter(e => e.result === 'TOO_NEW')
 
-  // Split removes into two risk categories
   const confirmedInactive = removes.filter(e => e.engagement?.lastPostAt !== null)
   const notFoundOnRelays = removes.filter(e => e.engagement?.lastPostAt === null)
 
+  // checked = not overridden → will be acted on
   const finalRemoveCount = removes.filter(e => !keepOverrides.has(e.pubkey)).length
   const finalAddCount = adds.filter(e => !skipOverrides.has(e.pubkey)).length
   const noChanges = finalRemoveCount === 0 && finalAddCount === 0
@@ -106,15 +106,16 @@ export default function DiffPreview({
       <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 grid grid-cols-3 gap-3 text-center">
         <div>
           <div className="text-2xl font-bold text-red-400 tabular-nums">{finalRemoveCount}</div>
-          <div className="text-zinc-500 text-xs mt-0.5">Removing</div>
+          <div className="text-zinc-500 text-xs mt-0.5">Unfollowing</div>
         </div>
         <div>
           <div className="text-2xl font-bold text-green-400 tabular-nums">{finalAddCount}</div>
-          <div className="text-zinc-500 text-xs mt-0.5">Adding</div>
+          <div className="text-zinc-500 text-xs mt-0.5">Following</div>
         </div>
         <div>
           <div className="text-2xl font-bold text-zinc-400 tabular-nums">
-            {evalled.filter(e => e.result === 'KEEP' || e.result === 'PROTECTED').length}
+            {evalled.filter(e => e.result === 'KEEP' || e.result === 'PROTECTED').length
+              + keepOverrides.size + skipOverrides.size}
           </div>
           <div className="text-zinc-500 text-xs mt-0.5">Keeping</div>
         </div>
@@ -123,58 +124,56 @@ export default function DiffPreview({
       {/* Confirmed inactive removes */}
       {confirmedInactive.length > 0 && (
         <Section
-          title={`Confirmed inactive (${confirmedInactive.length})`}
-          note="Last post found but older than your threshold."
+          title="Unfollow — confirmed inactive"
+          note="Checked = will be unfollowed. Uncheck to keep."
+          count={`${confirmedInactive.filter(e => !keepOverrides.has(e.pubkey)).length} of ${confirmedInactive.length} selected`}
+          countColor="text-red-500"
         >
-          {confirmedInactive.map(({ pubkey, engagement }) => {
-            const kept = keepOverrides.has(pubkey)
-            return (
-              <Row
-                key={pubkey}
-                pubkey={pubkey}
-                name={displayName(pubkey, profiles.get(pubkey))}
-                picture={profiles.get(pubkey)?.picture}
-                subtitle={removeReason(engagement)}
-                dimmed={kept}
-                action={kept ? 'undo' : 'keep'}
-                onAction={() => onKeepToggle(pubkey)}
-              />
-            )
-          })}
+          {confirmedInactive.map(({ pubkey, engagement }) => (
+            <Row
+              key={pubkey}
+              pubkey={pubkey}
+              name={displayName(pubkey, profiles.get(pubkey))}
+              picture={profiles.get(pubkey)?.picture}
+              subtitle={removeReason(engagement)}
+              checked={!keepOverrides.has(pubkey)}
+              onToggle={() => onKeepToggle(pubkey)}
+              checkColor="red"
+            />
+          ))}
         </Section>
       )}
 
-      {/* Not found on relays — higher risk section */}
+      {/* Not found on relays */}
       {notFoundOnRelays.length > 0 && (
         <Section
-          title={`Not found on queried relays (${notFoundOnRelays.length})`}
-          note="⚠ Higher false positive risk — these accounts may post to other relays. Review carefully or use [keep]."
+          title="Unfollow — not found on queried relays"
+          note="⚠ Higher false positive risk — may post to other relays. Review carefully before unfollowing."
           noteClass="text-amber-500/80"
+          count={`${notFoundOnRelays.filter(e => !keepOverrides.has(e.pubkey)).length} of ${notFoundOnRelays.length} selected`}
+          countColor="text-amber-500"
         >
-          {notFoundOnRelays.map(({ pubkey }) => {
-            const kept = keepOverrides.has(pubkey)
-            return (
-              <Row
-                key={pubkey}
-                pubkey={pubkey}
-                name={displayName(pubkey, profiles.get(pubkey))}
-                picture={profiles.get(pubkey)?.picture}
-                subtitle="not found on queried relays"
-                subtitleClass="text-amber-700"
-                dimmed={kept}
-                action={kept ? 'undo' : 'keep'}
-                onAction={() => onKeepToggle(pubkey)}
-              />
-            )
-          })}
-          {notFoundOnRelays.filter(e => !keepOverrides.has(e.pubkey)).length > 0 && (
+          {notFoundOnRelays.map(({ pubkey }) => (
+            <Row
+              key={pubkey}
+              pubkey={pubkey}
+              name={displayName(pubkey, profiles.get(pubkey))}
+              picture={profiles.get(pubkey)?.picture}
+              subtitle="not found on queried relays"
+              subtitleClass="text-amber-700"
+              checked={!keepOverrides.has(pubkey)}
+              onToggle={() => onKeepToggle(pubkey)}
+              checkColor="amber"
+            />
+          ))}
+          {notFoundOnRelays.some(e => !keepOverrides.has(e.pubkey)) && (
             <button
               onClick={() => notFoundOnRelays.forEach(e => {
                 if (!keepOverrides.has(e.pubkey)) onKeepToggle(e.pubkey)
               })}
               className="w-full py-2 text-xs text-zinc-500 hover:text-zinc-300 transition-colors border border-dashed border-zinc-800 rounded-lg"
             >
-              Keep all not-found ({notFoundOnRelays.filter(e => !keepOverrides.has(e.pubkey)).length})
+              Uncheck all not-found ({notFoundOnRelays.filter(e => !keepOverrides.has(e.pubkey)).length})
             </button>
           )}
         </Section>
@@ -182,28 +181,30 @@ export default function DiffPreview({
 
       {/* Adding */}
       {adds.length > 0 && (
-        <Section title={`Adding (${adds.length})`}>
-          {adds.map(({ pubkey, engagement }) => {
-            const skipped = skipOverrides.has(pubkey)
-            return (
-              <Row
-                key={pubkey}
-                pubkey={pubkey}
-                name={displayName(pubkey, profiles.get(pubkey))}
-                picture={profiles.get(pubkey)?.picture}
-                subtitle={formatEngagement(engagement)}
-                dimmed={skipped}
-                action={skipped ? 'undo' : 'skip'}
-                onAction={() => onSkipToggle(pubkey)}
-              />
-            )
-          })}
+        <Section
+          title="Follow — new engagers"
+          note="Checked = will be followed. Uncheck to skip."
+          count={`${adds.filter(e => !skipOverrides.has(e.pubkey)).length} of ${adds.length} selected`}
+          countColor="text-green-500"
+        >
+          {adds.map(({ pubkey, engagement }) => (
+            <Row
+              key={pubkey}
+              pubkey={pubkey}
+              name={displayName(pubkey, profiles.get(pubkey))}
+              picture={profiles.get(pubkey)?.picture}
+              subtitle={formatEngagement(engagement)}
+              checked={!skipOverrides.has(pubkey)}
+              onToggle={() => onSkipToggle(pubkey)}
+              checkColor="green"
+            />
+          ))}
         </Section>
       )}
 
       {/* Too new */}
       {tooNew.length > 0 && (
-        <Section title={`Too new to add (${tooNew.length})`}>
+        <Section title="Skipped — account too new">
           {tooNew.map(({ pubkey, engagement }) => (
             <Row
               key={pubkey}
@@ -211,8 +212,7 @@ export default function DiffPreview({
               name={displayName(pubkey, profiles.get(pubkey))}
               picture={profiles.get(pubkey)?.picture}
               subtitle={formatEngagement(engagement)}
-              dimmed
-              badge="account too new"
+              badge="too new"
             />
           ))}
         </Section>
@@ -259,16 +259,23 @@ function Section({
   title,
   note,
   noteClass = 'text-zinc-600',
+  count,
+  countColor = 'text-zinc-500',
   children,
 }: {
   title: string
   note?: string
   noteClass?: string
+  count?: string
+  countColor?: string
   children: React.ReactNode
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">{title}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">{title}</p>
+        {count && <p className={`text-xs flex-shrink-0 ${countColor}`}>{count}</p>}
+      </div>
       {note && <p className={`text-xs ${noteClass}`}>{note}</p>}
       <div className="space-y-1 max-h-72 overflow-y-auto pr-1">
         {children}
@@ -283,9 +290,9 @@ function Row({
   picture,
   subtitle,
   subtitleClass = 'text-zinc-600',
-  dimmed,
-  action,
-  onAction,
+  checked,
+  onToggle,
+  checkColor = 'default',
   badge,
 }: {
   pubkey: string
@@ -293,17 +300,39 @@ function Row({
   picture?: string
   subtitle?: string
   subtitleClass?: string
-  dimmed?: boolean
-  action?: string
-  onAction?: () => void
+  checked?: boolean          // undefined = read-only row (no checkbox)
+  onToggle?: () => void
+  checkColor?: 'red' | 'amber' | 'green' | 'default'
   badge?: string
 }) {
   const npub = nip19.npubEncode(pubkey)
+  const isReadOnly = checked === undefined
+
+  const accentClass =
+    checkColor === 'red'   ? 'accent-red-500' :
+    checkColor === 'amber' ? 'accent-amber-500' :
+    checkColor === 'green' ? 'accent-green-500' :
+    ''
+
   return (
-    <div className={`flex items-center gap-3 p-3 rounded-lg border border-zinc-800 transition-opacity ${dimmed ? 'opacity-50' : ''}`}>
-      {/* nostr: URI triggers native app picker on mobile (NIP-21) */}
+    <label className={`flex items-center gap-3 p-3 rounded-lg border border-zinc-800 transition-opacity ${
+      !isReadOnly && !checked ? 'opacity-40' : ''
+    } ${!isReadOnly ? 'cursor-pointer hover:border-zinc-700' : ''}`}>
+
+      {/* Checkbox — left side, only for interactive rows */}
+      {!isReadOnly && (
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={onToggle}
+          className={`w-4 h-4 flex-shrink-0 rounded ${accentClass}`}
+        />
+      )}
+
+      {/* Avatar */}
       <a
         href={`nostr:${npub}`}
+        onClick={e => e.stopPropagation()}
         className="flex-shrink-0"
         title="Open in Nostr app"
       >
@@ -315,23 +344,26 @@ function Row({
             onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
           />
         ) : (
-          <div className="w-7 h-7 rounded-full bg-zinc-800 hover:ring-2 hover:ring-purple-500 transition-all" />
+          <div className="w-7 h-7 rounded-full flex-shrink-0 bg-zinc-800 hover:ring-2 hover:ring-purple-500 transition-all" />
         )}
       </a>
+
+      {/* Name + subtitle */}
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-1.5 min-w-0">
           <a
             href={`nostr:${npub}`}
+            onClick={e => e.stopPropagation()}
             className="text-sm text-zinc-300 truncate hover:text-white transition-colors"
             title="Open in Nostr app"
           >
             {name}
           </a>
-          {/* Web fallback for desktop */}
           <a
             href={`https://primal.net/p/${npub}`}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
             className="text-zinc-700 hover:text-zinc-400 transition-colors flex-shrink-0 text-xs"
             title="Open on Primal web"
           >
@@ -340,26 +372,13 @@ function Row({
         </div>
         {subtitle && <p className={`text-xs mt-0.5 ${subtitleClass}`}>{subtitle}</p>}
       </div>
+
       {badge && (
         <span className="text-xs px-2 py-0.5 rounded-full border border-zinc-800 text-zinc-600 flex-shrink-0">
           {badge}
         </span>
       )}
-      {action && onAction && (
-        <button
-          onClick={onAction}
-          className={`text-xs px-2.5 py-1 rounded-md border transition-colors flex-shrink-0 font-medium ${
-            action === 'keep'
-              ? 'border-green-800 text-green-500 hover:bg-green-900/30 hover:border-green-700'
-              : action === 'skip'
-              ? 'border-zinc-600 text-zinc-400 hover:bg-zinc-800'
-              : 'border-dashed border-zinc-600 text-zinc-500 hover:bg-zinc-800'  // undo
-          }`}
-        >
-          {action === 'keep' ? '✓ keep' : action === 'skip' ? '✕ skip' : '↩ undo'}
-        </button>
-      )}
-    </div>
+    </label>
   )
 }
 
