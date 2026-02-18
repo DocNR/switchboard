@@ -246,13 +246,16 @@ export default function RulesBuilder({
           onRemove={pk => onChange({ ...rules, allowlist: rules.allowlist.filter(p => p !== pk) })}
         />
         {hasUnsavedAllowlistChanges(rules.allowlist, savedAllowlist) && (
-          <button
-            onClick={onSaveAllowlist}
-            disabled={allowlistSaving}
-            className="w-full text-xs py-1.5 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
-          >
-            {allowlistSaving ? 'Saving…' : allowlistSaved ? 'Saved' : 'Save to Nostr'}
-          </button>
+          <div className="space-y-1">
+            <button
+              onClick={onSaveAllowlist}
+              disabled={allowlistSaving}
+              className="w-full text-xs py-1.5 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+            >
+              {allowlistSaving ? 'Saving…' : allowlistSaved ? 'Saved' : 'Save to Nostr'}
+            </button>
+            <p className="text-zinc-600 text-[10px] text-center">Publish your hall pass so it&apos;s remembered across devices and sessions</p>
+          </div>
         )}
       </div>
 
