@@ -181,14 +181,18 @@ export async function fetchLastPostDates(
   const result = new Map<string, number | null>(pubkeys.map(pk => [pk, null]))
   const pool = new SimplePool()
 
-  // Query in batches to avoid relay filter limits
+  // Query in batches to avoid relay filter limits.
+  // Limit must be much larger than batchSize: the relay returns the N most
+  // recent events across ALL authors in the batch combined. With limit = batchSize,
+  // prolific authors crowd out others and they appear inactive. 20x gives each
+  // author ~20 slots on average, which is enough for anyone posting regularly.
   for (let i = 0; i < pubkeys.length; i += batchSize) {
     const batch = pubkeys.slice(i, i + batchSize)
     const events = await pool.querySync(relays, {
       kinds: [1, 6],
       authors: batch,
       since,
-      limit: batch.length,
+      limit: batch.length * 20,
     })
     for (const event of events) {
       const current = result.get(event.pubkey)

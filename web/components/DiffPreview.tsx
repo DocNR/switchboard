@@ -57,15 +57,19 @@ export default function DiffPreview({
         </div>
       </div>
 
-      <p className="text-zinc-600 text-xs">
-        ⚠ Removals may have false positives — some accounts only post to relays not queried here.
-        Use [keep] to override individual removals.
-      </p>
+      <div className="rounded-lg bg-amber-950/40 border border-amber-900/60 px-3 py-2.5 space-y-1">
+        <p className="text-amber-400 text-xs font-medium">⚠ False positive risk</p>
+        <p className="text-amber-500/70 text-xs">
+          &ldquo;Not found on queried relays&rdquo; is not the same as inactive. Anyone who
+          primarily posts to relays outside the 5 queried here will appear silent.
+          Use <span className="font-mono">[keep]</span> to override individual removals.
+        </p>
+      </div>
 
       {/* Remove list */}
       {removes.length > 0 && (
         <Section title={`Removing (${removes.length})`}>
-          {removes.map(({ pubkey }) => {
+          {removes.map(({ pubkey, engagement }) => {
             const kept = keepOverrides.has(pubkey)
             const name = displayName(pubkey, profiles.get(pubkey))
             const pic = profiles.get(pubkey)?.picture
@@ -74,6 +78,7 @@ export default function DiffPreview({
                 key={pubkey}
                 name={name}
                 picture={pic}
+                subtitle={removeReason(engagement)}
                 dimmed={kept}
                 action={kept ? 'undo' : 'keep'}
                 onAction={() => onKeepToggle(pubkey)}
@@ -223,6 +228,15 @@ function displayName(pubkey: string, profile?: Profile): string {
   if (profile?.name) return profile.name
   const npub = nip19.npubEncode(pubkey)
   return `${npub.slice(0, 10)}…${npub.slice(-6)}`
+}
+
+function removeReason(data?: EngagementData): string {
+  if (!data) return 'not found on queried relays'
+  if (data.lastPostAt === null) return 'not found on queried relays'
+  const days = Math.floor((Date.now() / 1000 - data.lastPostAt) / (60 * 60 * 24))
+  if (days < 30) return `last post: ${days}d ago`
+  if (days < 365) return `last post: ${Math.floor(days / 30)}mo ago`
+  return `last post: ${Math.floor(days / 365)}y ago`
 }
 
 function formatEngagement(data?: EngagementData): string {
