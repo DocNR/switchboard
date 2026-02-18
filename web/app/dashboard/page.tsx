@@ -545,6 +545,15 @@ export default function DashboardPage() {
                 />
               </div>
 
+              {/* CTA */}
+              <button
+                onClick={() => setView('rules')}
+                disabled={profileLoading}
+                className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors"
+              >
+                Manage Follow List →
+              </button>
+
               {/* Broadcast — surfaces relay sync issues */}
               {rawEvent && (
                 <div className="flex items-center justify-between">
@@ -560,15 +569,6 @@ export default function DashboardPage() {
                   </button>
                 </div>
               )}
-
-              {/* CTA */}
-              <button
-                onClick={() => setView('rules')}
-                disabled={profileLoading}
-                className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors"
-              >
-                Manage Follow List →
-              </button>
 
               {/* Recent notes */}
               {notes.length > 0 && (

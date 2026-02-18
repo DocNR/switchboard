@@ -90,6 +90,9 @@ export default function RulesBuilder({
   return (
     <div className="space-y-6">
 
+      {/* ── Rules card: lookback + ADD + REMOVE + allowlist ── */}
+      <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-4">
+
       {/* Lookback window */}
       <div className="flex items-center gap-3">
         <span className="text-zinc-400 text-sm">Lookback window</span>
@@ -102,9 +105,11 @@ export default function RulesBuilder({
         />
         <span className="text-zinc-500 text-sm">days (ADD rules + engagement REMOVE rules)</span>
       </div>
-      <p className="text-zinc-700 text-xs -mt-3">
+      <p className="text-zinc-700 text-xs">
         Changing this requires a re-analysis. All other rule thresholds apply instantly.
       </p>
+
+      <hr className="border-zinc-800" />
 
       {/* ADD rules */}
       <div className="space-y-2">
@@ -151,6 +156,8 @@ export default function RulesBuilder({
         </div>
       </div>
 
+      <hr className="border-zinc-800" />
+
       {/* REMOVE rules */}
       <div className="space-y-2">
         <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">
@@ -194,14 +201,16 @@ export default function RulesBuilder({
         })}
       </div>
 
+      <hr className="border-zinc-800" />
+
       {/* Allowlist */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Protected follows</p>
+          <p className="text-zinc-500 text-xs font-medium uppercase tracking-wider">Never remove</p>
           <button
             onClick={onSaveAllowlist}
             disabled={allowlistSaving || allowlistSaved}
-            className="text-xs px-2.5 py-1 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors"
+            className="text-xs px-2.5 py-1 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
           >
             {allowlistSaving ? 'Saving…' : allowlistSaved ? '✓ Saved to Nostr' : 'Save to Nostr'}
           </button>
@@ -222,15 +231,17 @@ export default function RulesBuilder({
         <p className="text-zinc-700 text-xs">Loaded from and saved to a NIP-51 follow set on your relays.</p>
       </div>
 
+      </div>{/* end rules card */}
+
       {/* Relay settings */}
       <div className="space-y-2">
         <button
           onClick={() => setShowRelays(v => !v)}
-          className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-xs transition-colors"
+          className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
         >
           <span>{showRelays ? '▾' : '▸'}</span>
           <span className="font-medium uppercase tracking-wider">
-            Relay settings — {relays.length} relay{relays.length !== 1 ? 's' : ''} queried
+            Relays ({relays.length})
           </span>
         </button>
 
@@ -248,13 +259,20 @@ export default function RulesBuilder({
       <div className="pt-2 space-y-4">
         {loading ? (
           <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-3">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3" aria-live="polite">
               <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
               <p className="text-zinc-400 text-sm">{loadStep || 'Loading…'}</p>
             </div>
             {loadProgress && (
               <div className="space-y-1.5">
-                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                  className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden"
+                  role="progressbar"
+                  aria-valuenow={Math.round((loadProgress.done / loadProgress.total) * 100)}
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-label="Analysis progress"
+                >
                   <div
                     className="h-full bg-purple-600 rounded-full transition-all duration-300"
                     style={{ width: `${Math.round((loadProgress.done / loadProgress.total) * 100)}%` }}
@@ -270,7 +288,7 @@ export default function RulesBuilder({
           <button
             onClick={onLoad}
             disabled={enabledRules === 0}
-            className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors"
+            className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
           >
             {enabledRules === 0 ? 'Enable at least one rule to analyze' : 'Analyze My Follows →'}
           </button>
@@ -320,7 +338,7 @@ export default function RulesBuilder({
             <button
               onClick={onPreview}
               disabled={!hasChanges}
-              className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors"
+              className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
             >
               {hasChanges ? 'Preview Changes →' : 'No changes with current rules'}
             </button>
@@ -382,7 +400,7 @@ function AllowlistEditor({
           />
           <button
             onClick={() => handleAdd()}
-            className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors flex-shrink-0"
+            className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 rounded text-sm transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
           >
             Add
           </button>
@@ -398,7 +416,7 @@ function AllowlistEditor({
                 <button
                   key={pk}
                   onMouseDown={() => handleAdd(pk)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-800 transition-colors text-left"
+                  className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-800 transition-colors text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
                 >
                   {p.picture ? (
                     <img
@@ -443,7 +461,7 @@ function AllowlistEditor({
             {name && <span className="text-zinc-600 text-xs font-mono flex-shrink-0">{short}</span>}
             <button
               onClick={() => onRemove(pk)}
-              className="text-zinc-600 hover:text-red-400 text-xs transition-colors ml-1 flex-shrink-0"
+              className="text-zinc-600 hover:text-red-400 text-xs transition-colors ml-1 flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
             >
               Remove
             </button>
@@ -564,7 +582,7 @@ function RelayEditor({
           {!isDefault && (
             <button
               onClick={() => { onChange([...DEFAULT_RELAYS]); setStatuses(new Map()) }}
-              className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors underline"
+              className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
             >
               Reset
             </button>
@@ -572,7 +590,7 @@ function RelayEditor({
           <button
             onClick={checkAll}
             disabled={checking}
-            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-50"
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
           >
             {checking ? 'Checking…' : 'Check status'}
           </button>
@@ -587,7 +605,7 @@ function RelayEditor({
             <button
               onClick={() => onChange(relays.filter(r => r !== relay))}
               disabled={relays.length <= 1}
-              className="text-zinc-600 hover:text-zinc-300 text-xs transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed ml-1"
+              className="text-zinc-600 hover:text-zinc-300 text-xs transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed ml-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
             >
               Remove
             </button>
@@ -606,7 +624,7 @@ function RelayEditor({
         />
         <button
           onClick={handleAdd}
-          className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded text-sm transition-colors flex-shrink-0"
+          className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded text-sm transition-colors flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
         >
           Add
         </button>
@@ -615,7 +633,7 @@ function RelayEditor({
       <button
         onClick={onDetect}
         disabled={detecting}
-        className="w-full py-2 px-3 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 text-xs transition-colors disabled:opacity-50"
+        className="w-full py-2 px-3 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 text-xs transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
       >
         {detecting ? 'Detecting…' : 'Auto-detect from extension'}
       </button>

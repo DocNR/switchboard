@@ -80,7 +80,7 @@ export default function DiffPreview({
     return (
       <div className="space-y-6">
         <p className="text-zinc-600 text-sm text-center py-6">No changes recommended.</p>
-        <button onClick={onBack} className="w-full py-3 rounded-lg border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-sm font-medium transition-colors">
+        <button onClick={onBack} className="w-full py-3 rounded-lg border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">
           ← Back
         </button>
       </div>
@@ -127,14 +127,14 @@ export default function DiffPreview({
             <div className="flex gap-3">
               <button
                 onClick={() => setConfirming(false)}
-                className="flex-1 py-2.5 rounded-lg border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-sm font-medium transition-colors"
+                className="flex-1 py-2.5 rounded-lg border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
               >
                 Cancel
               </button>
               <button
                 onClick={() => { setConfirming(false); onApply() }}
                 disabled={noChanges}
-                className="flex-1 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-sm font-medium transition-colors"
+                className="flex-1 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
               >
                 Sign & publish
               </button>
@@ -148,7 +148,7 @@ export default function DiffPreview({
         <div className="flex items-center gap-2 text-xs">
           <button
             onClick={() => setStep('unfollows')}
-            className={`flex items-center gap-1.5 transition-colors ${step === 'unfollows' ? 'text-zinc-200 font-semibold' : 'text-zinc-600 hover:text-zinc-400'}`}
+            className={`flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${step === 'unfollows' ? 'text-zinc-200 font-semibold' : 'text-zinc-600 hover:text-zinc-400'}`}
           >
             <span className={`w-4 h-4 rounded-full border text-center leading-none flex items-center justify-center text-[10px] font-bold ${step === 'unfollows' ? 'border-zinc-400 text-zinc-300' : 'border-zinc-700 text-zinc-600'}`}>1</span>
             Unfollows
@@ -156,7 +156,7 @@ export default function DiffPreview({
           <span className="text-zinc-700">——</span>
           <button
             onClick={() => hasRemoves && setStep('follows')}
-            className={`flex items-center gap-1.5 transition-colors ${step === 'follows' ? 'text-zinc-200 font-semibold' : 'text-zinc-600 hover:text-zinc-400'}`}
+            className={`flex items-center gap-1.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900 ${step === 'follows' ? 'text-zinc-200 font-semibold' : 'text-zinc-600 hover:text-zinc-400'}`}
           >
             <span className={`w-4 h-4 rounded-full border text-center flex items-center justify-center text-[10px] font-bold ${step === 'follows' ? 'border-zinc-400 text-zinc-300' : 'border-zinc-700 text-zinc-600'}`}>2</span>
             New follows
@@ -176,9 +176,9 @@ export default function DiffPreview({
                 </span>
               </h2>
               <div className="flex gap-3 text-xs">
-                <button onClick={unfollowAll} className="text-zinc-500 hover:text-zinc-200 transition-colors">All</button>
+                <button onClick={unfollowAll} className="text-zinc-500 hover:text-zinc-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">All</button>
                 <span className="text-zinc-700">·</span>
-                <button onClick={keepAll} className="text-zinc-500 hover:text-zinc-200 transition-colors">None</button>
+                <button onClick={keepAll} className="text-zinc-500 hover:text-zinc-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">None</button>
               </div>
             </div>
             <p className="text-zinc-500 text-xs mt-0.5">
@@ -192,9 +192,9 @@ export default function DiffPreview({
               <div className="flex items-center justify-between">
                 <p className="text-zinc-600 text-xs">Confirmed inactive</p>
                 <div className="flex gap-3 text-xs">
-                  <button onClick={unfollowAllConfirmed} className="text-zinc-600 hover:text-zinc-300 transition-colors">All</button>
+                  <button onClick={unfollowAllConfirmed} className="text-zinc-600 hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">All</button>
                   <span className="text-zinc-700">·</span>
-                  <button onClick={keepAllConfirmed} className="text-zinc-600 hover:text-zinc-300 transition-colors">None</button>
+                  <button onClick={keepAllConfirmed} className="text-zinc-600 hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">None</button>
                 </div>
               </div>
               <div className="space-y-1 max-h-56 overflow-y-auto">
@@ -219,9 +219,9 @@ export default function DiffPreview({
               <div className="flex items-center justify-between">
                 <p className="text-zinc-500 text-xs">⚠ Not found on queried relays</p>
                 <div className="flex gap-3 text-xs">
-                  <button onClick={unfollowAllNotFound} className="text-zinc-600 hover:text-zinc-300 transition-colors">All</button>
+                  <button onClick={unfollowAllNotFound} className="text-zinc-600 hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">All</button>
                   <span className="text-zinc-700">·</span>
-                  <button onClick={keepAllNotFound} className="text-zinc-600 hover:text-zinc-300 transition-colors">None</button>
+                  <button onClick={keepAllNotFound} className="text-zinc-600 hover:text-zinc-300 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">None</button>
                 </div>
               </div>
               <p className="text-zinc-600 text-xs -mt-0.5">
@@ -257,9 +257,9 @@ export default function DiffPreview({
                 </span>
               </h2>
               <div className="flex gap-3 text-xs">
-                <button onClick={followAll} className="text-zinc-500 hover:text-zinc-200 transition-colors">All</button>
+                <button onClick={followAll} className="text-zinc-500 hover:text-zinc-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">All</button>
                 <span className="text-zinc-700">·</span>
-                <button onClick={skipAll} className="text-zinc-500 hover:text-zinc-200 transition-colors">None</button>
+                <button onClick={skipAll} className="text-zinc-500 hover:text-zinc-200 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900">None</button>
               </div>
             </div>
             <p className="text-zinc-500 text-xs mt-0.5">
@@ -298,14 +298,14 @@ export default function DiffPreview({
         <button
           onClick={handleBack}
           disabled={publishing}
-          className="py-3 px-4 rounded-lg border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-sm font-medium transition-colors disabled:opacity-50"
+          className="py-3 px-4 rounded-lg border border-zinc-700 hover:border-zinc-500 text-zinc-300 text-sm font-medium transition-colors disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
         >
           ← Back
         </button>
         <button
           onClick={handleNext}
           disabled={publishing}
-          className="flex-1 py-3 px-4 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-sm font-medium transition-colors"
+          className="flex-1 py-3 px-4 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
         >
           {publishing ? (
             <span className="flex items-center justify-center gap-2">
