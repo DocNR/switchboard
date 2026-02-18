@@ -103,6 +103,7 @@ export default function DashboardPage() {
   const [view, setView] = useState<View>('profile')
   const [analysisPhase, setAnalysisPhase] = useState<AnalysisPhase>('idle')
   const [loadStep, setLoadStep] = useState('')
+  const [loadProgress, setLoadProgress] = useState<{ done: number; total: number } | null>(null)
   const [rules, setRules] = useState<Rules>(DEFAULT_RULES)
   const [allData, setAllData] = useState<Map<string, EngagementData>>(new Map())
   const [evalled, setEvalled] = useState<EvalledPubkey[]>([])
@@ -233,6 +234,7 @@ export default function DashboardPage() {
 
   async function loadAnalysisData() {
     setAnalysisPhase('loading')
+    setLoadProgress(null)
     try {
       // 1. Fetch engagement events (who engaged with the user in the window)
       setLoadStep('Fetching your engagement data…')
@@ -240,8 +242,11 @@ export default function DashboardPage() {
 
       // 2. Fetch last post dates for all current follows
       const followPubkeys = follows.map(f => f.pubkey)
-      setLoadStep(`Checking ${followPubkeys.length.toLocaleString()} follows for recent activity…`)
-      const lastPostDates = await fetchLastPostDates(followPubkeys, 400, relays)
+      setLoadStep('Checking follows for recent activity…')
+      setLoadProgress({ done: 0, total: followPubkeys.length })
+      const lastPostDates = await fetchLastPostDates(followPubkeys, 400, relays, (done, total) => {
+        setLoadProgress({ done, total })
+      })
 
       // 3. Fetch profiles for non-follow engagers (account age proxy via profile.createdAt)
       const followSet = new Set(followPubkeys)
@@ -276,6 +281,7 @@ export default function DashboardPage() {
 
       setAllData(merged)
       setLoadedWindowDays(rules.windowDays)
+      setLoadProgress(null)
       setAnalysisPhase('ready')
 
       const evalled = evaluateAll(followSet, merged, rules)
@@ -498,6 +504,7 @@ export default function DashboardPage() {
             loaded={analysisPhase === 'ready'}
             loading={analysisPhase === 'loading'}
             loadStep={loadStep}
+            loadProgress={loadProgress}
             onLoad={loadAnalysisData}
             onPreview={async () => {
               if (previewLoading) return

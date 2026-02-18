@@ -16,6 +16,7 @@ export const DEFAULT_RELAYS = [
   'wss://relay.snort.social',
   'wss://relay.primal.net',
   'wss://nostr.wine',
+  'wss://purplepag.es',  // profile metadata relay — speeds up name/avatar resolution
 ]
 
 // Convert npub1... or hex pubkey to hex
@@ -186,6 +187,7 @@ export async function fetchLastPostDates(
   pubkeys: string[],
   cutoffDays: number,
   relays = DEFAULT_RELAYS,
+  onProgress?: (completed: number, total: number) => void,
 ): Promise<Map<string, number | null>> {
   const since = Math.floor(Date.now() / 1000) - cutoffDays * 24 * 60 * 60
   const result = new Map<string, number | null>(pubkeys.map(pk => [pk, null]))
@@ -197,6 +199,7 @@ export async function fetchLastPostDates(
 
   // Track cumulative failures per relay across all rounds
   const failures = new Map<string, number>(relays.map(r => [r, 0]))
+  let completed = 0
 
   for (let i = 0; i < pubkeys.length; i += CONCURRENCY) {
     const batch = pubkeys.slice(i, i + CONCURRENCY)
@@ -227,6 +230,9 @@ export async function fetchLastPostDates(
         result.set(pk, latest.created_at)
       }
     }))
+
+    completed = Math.min(i + CONCURRENCY, pubkeys.length)
+    onProgress?.(completed, pubkeys.length)
   }
 
   pool.close(relays)

@@ -41,6 +41,7 @@ interface RulesBuilderProps {
   loaded: boolean
   loading: boolean
   loadStep: string
+  loadProgress: { done: number; total: number } | null
   onLoad: () => void
   onPreview: () => void
   onSaveAllowlist: () => Promise<void>
@@ -59,6 +60,7 @@ export default function RulesBuilder({
   loaded,
   loading,
   loadStep,
+  loadProgress,
   onLoad,
   onPreview,
   onSaveAllowlist,
@@ -245,11 +247,24 @@ export default function RulesBuilder({
       {/* Load / Loading / Summary */}
       <div className="pt-2 space-y-4">
         {loading ? (
-          <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4">
+          <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-3">
             <div className="flex items-center gap-3">
               <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
               <p className="text-zinc-400 text-sm">{loadStep || 'Loading…'}</p>
             </div>
+            {loadProgress && (
+              <div className="space-y-1.5">
+                <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-purple-600 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.round((loadProgress.done / loadProgress.total) * 100)}%` }}
+                  />
+                </div>
+                <p className="text-zinc-600 text-xs tabular-nums">
+                  {loadProgress.done.toLocaleString()} / {loadProgress.total.toLocaleString()} follows checked
+                </p>
+              </div>
+            )}
           </div>
         ) : !loaded ? (
           <button
