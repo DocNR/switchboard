@@ -294,7 +294,7 @@ export default function RulesBuilder({
           </button>
         ) : (
           <>
-            <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 grid grid-cols-3 gap-3 text-center">
+            <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 grid grid-cols-2 gap-3 text-center">
               <div>
                 <div className="text-2xl font-bold text-red-400 tabular-nums">{summary.removing}</div>
                 <div className="text-zinc-500 text-xs mt-0.5">Removing</div>
@@ -302,12 +302,6 @@ export default function RulesBuilder({
               <div>
                 <div className="text-2xl font-bold text-green-400 tabular-nums">{summary.adding}</div>
                 <div className="text-zinc-500 text-xs mt-0.5">Adding</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-zinc-400 tabular-nums">
-                  {summary.keeping + summary.protected}
-                </div>
-                <div className="text-zinc-500 text-xs mt-0.5">Keeping</div>
               </div>
             </div>
 
