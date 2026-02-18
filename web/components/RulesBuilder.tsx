@@ -98,6 +98,9 @@ export default function RulesBuilder({
         />
         <span className="text-zinc-500 text-sm">days (ADD rules + engagement REMOVE rules)</span>
       </div>
+      <p className="text-zinc-700 text-xs -mt-3">
+        Changing this requires a re-analysis. All other rule thresholds apply instantly.
+      </p>
 
       {/* ADD rules */}
       <div className="space-y-2">
@@ -272,6 +275,8 @@ export default function RulesBuilder({
                 <div className="text-zinc-500 text-xs mt-0.5">Keeping</div>
               </div>
             </div>
+
+            <p className="text-zinc-700 text-xs text-center">Rule changes apply instantly — tweak thresholds freely.</p>
 
             {summary.tooNew > 0 && (
               <p className="text-zinc-600 text-xs text-center">
