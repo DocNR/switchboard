@@ -7,11 +7,13 @@
 // calling getPublicKey() silently on mount triggers unprompted popups that
 // Safari blocks).
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 export default function Home() {
   const [loggingIn, setLoggingIn] = useState(false)
+  const [waiting, setWaiting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Restore existing session from localStorage — no Nostr call needed
   useEffect(() => {
@@ -19,7 +21,37 @@ export default function Home() {
     if (stored) {
       window.location.href = '/dashboard'
     }
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [])
+
+  function completeLogin(pubkey: string) {
+    if (pollRef.current) clearInterval(pollRef.current)
+    localStorage.setItem('nostr_pubkey', pubkey)
+    window.location.href = '/dashboard'
+  }
+
+  // Poll getPublicKey() after the NIP-46 widget opens — auto-login once
+  // the handshake completes.
+  function startPolling() {
+    setWaiting(true)
+    pollRef.current = setInterval(async () => {
+      try {
+        if (!window.nostr) return
+        const pk = await window.nostr.getPublicKey()
+        if (pk) completeLogin(pk)
+      } catch { /* handshake not done yet */ }
+    }, 2000)
+    // Stop after 2 minutes
+    setTimeout(() => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+        setWaiting(false)
+        setLoggingIn(false)
+        setError('Connection timed out. Please try again.')
+      }
+    }, 120_000)
+  }
 
   async function handleLogin() {
     setLoggingIn(true)
@@ -29,12 +61,12 @@ export default function Home() {
         throw new Error('No Nostr signer found. Install Alby or nos2x, or use a NIP-46 bunker.')
       }
       const pubkey = await window.nostr.getPublicKey()
-      localStorage.setItem('nostr_pubkey', pubkey)
-      window.location.href = '/dashboard'
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
-      setLoggingIn(false)
+      if (pubkey) { completeLogin(pubkey); return }
+    } catch {
+      // getPublicKey() failed — NIP-46 widget may have opened.
+      // Start polling so we auto-login once the handshake finishes.
     }
+    startPolling()
   }
 
   return (
@@ -58,7 +90,7 @@ export default function Home() {
             disabled={loggingIn}
             className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
           >
-            {loggingIn ? 'Connecting...' : 'Login with Nostr'}
+            {waiting ? 'Waiting for signer…' : loggingIn ? 'Connecting…' : 'Login with Nostr'}
           </button>
 
           {error && (
