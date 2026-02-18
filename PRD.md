@@ -341,7 +341,7 @@ function evaluate(pubkey, data, rules, isCurrentFollow) {
 - Mutual follow filter
 - Engagement score (weighted combo → single sortable number)
 - Export/import rule sets as JSON or Nostr event
-- NIP-65 outbox model for better relay coverage
+- **NIP-65 outbox model** — query each user's declared write relays instead of hardcoded list; eliminates false-positive dormant classifications for users on obscure relays
 - History log of changes
 
 ---
