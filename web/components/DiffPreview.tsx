@@ -300,7 +300,7 @@ function Row({
 }) {
   const npub = nip19.npubEncode(pubkey)
   return (
-    <div className={`flex items-center gap-3 p-3 rounded-lg border border-zinc-800 transition-opacity ${dimmed ? 'opacity-40' : ''}`}>
+    <div className={`flex items-center gap-3 p-3 rounded-lg border border-zinc-800 transition-opacity ${dimmed ? 'opacity-50' : ''}`}>
       {/* nostr: URI triggers native app picker on mobile (NIP-21) */}
       <a
         href={`nostr:${npub}`}
@@ -340,13 +340,23 @@ function Row({
         </div>
         {subtitle && <p className={`text-xs mt-0.5 ${subtitleClass}`}>{subtitle}</p>}
       </div>
-      {badge && <span className="text-xs text-zinc-600 flex-shrink-0">{badge}</span>}
+      {badge && (
+        <span className="text-xs px-2 py-0.5 rounded-full border border-zinc-800 text-zinc-600 flex-shrink-0">
+          {badge}
+        </span>
+      )}
       {action && onAction && (
         <button
           onClick={onAction}
-          className="text-xs text-zinc-600 hover:text-zinc-300 transition-colors flex-shrink-0 ml-1"
+          className={`text-xs px-2.5 py-1 rounded-md border transition-colors flex-shrink-0 font-medium ${
+            action === 'keep'
+              ? 'border-green-800 text-green-500 hover:bg-green-900/30 hover:border-green-700'
+              : action === 'skip'
+              ? 'border-zinc-600 text-zinc-400 hover:bg-zinc-800'
+              : 'border-dashed border-zinc-600 text-zinc-500 hover:bg-zinc-800'  // undo
+          }`}
         >
-          {action}
+          {action === 'keep' ? '✓ keep' : action === 'skip' ? '✕ skip' : '↩ undo'}
         </button>
       )}
     </div>
