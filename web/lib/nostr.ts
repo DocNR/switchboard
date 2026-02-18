@@ -129,8 +129,10 @@ export async function fetchEngagementData(
   }
 
   for (const event of events) {
-    const sender = event.pubkey
-    if (sender === pubkey) continue  // skip self
+    // For zap receipts (9735), event.pubkey is the zap service, not the sender.
+    // The actual sender is in the uppercase P tag or the embedded zap request.
+    const sender = event.kind === 9735 ? extractZapSender(event) : event.pubkey
+    if (!sender || sender === pubkey) continue  // skip self or unparseable
 
     const d = get(sender)
 
@@ -156,6 +158,26 @@ export async function fetchEngagementData(
   }
 
   return data
+}
+
+// Extract the actual sender pubkey from a kind 9735 zap receipt.
+// Per NIP-57, the receipt's .pubkey is the zap service — the real sender
+// is in the uppercase P tag or the embedded zap request's .pubkey.
+function extractZapSender(zapReceipt: Event): string | null {
+  // Try uppercase P tag first (most reliable, added by compliant zap services)
+  const pTag = zapReceipt.tags.find(t => t[0] === 'P')
+  if (pTag?.[1]?.length === 64) return pTag[1]
+
+  // Fallback: parse the embedded zap request from the description tag
+  try {
+    const descTag = zapReceipt.tags.find(t => t[0] === 'description')
+    if (!descTag) return null
+    const zapRequest = JSON.parse(descTag[1])
+    if (zapRequest.pubkey?.length === 64) return zapRequest.pubkey
+  } catch {
+    // malformed description
+  }
+  return null
 }
 
 // Extract sats from a kind 9735 zap receipt event
