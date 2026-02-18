@@ -121,6 +121,7 @@ export default function DashboardPage() {
   // ── allowlist sync ──
   const [allowlistSaving, setAllowlistSaving] = useState(false)
   const [allowlistSaved, setAllowlistSaved] = useState(false)
+  const [savedAllowlist, setSavedAllowlist] = useState<Set<string>>(new Set())
 
   // ── phase 4: publish ──
   const [publishing, setPublishing] = useState(false)
@@ -222,6 +223,7 @@ export default function DashboardPage() {
       if (fl.length > 0) backgroundFetchFollowProfiles(fl.map(f => f.pubkey), fetchRelays)
       if (nip51Allowlist.length > 0) {
         setRules(prev => ({ ...prev, allowlist: nip51Allowlist }))
+        setSavedAllowlist(new Set(nip51Allowlist))
       }
       setNotes(recentNotes.slice(0, 10))
       setPostsLast30d(recentNotes.filter(n => n.created_at >= cutoff).length)
@@ -376,6 +378,7 @@ export default function DashboardPage() {
         relays.map(r => pool.publish([r], signedEvent as unknown as Event))
       )
       pool.close(relays)
+      setSavedAllowlist(new Set(rules.allowlist))
       setAllowlistSaved(true)
       setTimeout(() => setAllowlistSaved(false), 3000)
     } catch (err) {
@@ -513,6 +516,7 @@ export default function DashboardPage() {
             onSaveAllowlist={saveAllowlist}
             allowlistSaving={allowlistSaving}
             allowlistSaved={allowlistSaved}
+            savedAllowlist={savedAllowlist}
             followProfiles={followProfiles}
           />
         </>

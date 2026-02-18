@@ -46,6 +46,7 @@ interface RulesBuilderProps {
   onSaveAllowlist: () => Promise<void>
   allowlistSaving: boolean
   allowlistSaved: boolean
+  savedAllowlist: Set<string>
   followProfiles: Map<string, Profile>
 }
 
@@ -65,6 +66,7 @@ export default function RulesBuilder({
   onSaveAllowlist,
   allowlistSaving,
   allowlistSaved,
+  savedAllowlist,
   followProfiles,
 }: RulesBuilderProps) {
   const [showRelays, setShowRelays] = useState(false)
@@ -223,23 +225,15 @@ export default function RulesBuilder({
         })}
       </div>
 
-      {/* ── Allowlist ── */}
-      <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-2">
-        <div className="flex items-center justify-between mb-1">
-          <div>
-            <p className="text-zinc-200 text-sm font-semibold">Hall Pass</p>
-            <p className="text-zinc-600 text-xs">These accounts are white-listed and never pruned</p>
-          </div>
-          <button
-            onClick={onSaveAllowlist}
-            disabled={allowlistSaving || allowlistSaved}
-            className="text-xs px-2.5 py-1 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
-          >
-            {allowlistSaving ? 'Saving…' : allowlistSaved ? 'Saved' : 'Save to Nostr'}
-          </button>
+      {/* ── Hall Pass ── */}
+      <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-3">
+        <div>
+          <p className="text-zinc-200 text-sm font-semibold">Hall Pass</p>
+          <p className="text-zinc-600 text-xs">These accounts are white-listed and never pruned</p>
         </div>
         <AllowlistEditor
           allowlist={rules.allowlist}
+          savedAllowlist={savedAllowlist}
           followProfiles={followProfiles}
           onAdd={input => {
             try {
@@ -251,6 +245,15 @@ export default function RulesBuilder({
           }}
           onRemove={pk => onChange({ ...rules, allowlist: rules.allowlist.filter(p => p !== pk) })}
         />
+        {hasUnsavedAllowlistChanges(rules.allowlist, savedAllowlist) && (
+          <button
+            onClick={onSaveAllowlist}
+            disabled={allowlistSaving}
+            className="w-full text-xs py-1.5 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+          >
+            {allowlistSaving ? 'Saving…' : allowlistSaved ? 'Saved' : 'Save to Nostr'}
+          </button>
+        )}
       </div>
 
       {/* Relay settings */}
@@ -363,15 +366,22 @@ export default function RulesBuilder({
   )
 }
 
+function hasUnsavedAllowlistChanges(current: string[], saved: Set<string>): boolean {
+  if (current.length !== saved.size) return true
+  return current.some(pk => !saved.has(pk))
+}
+
 // ─── sub-components ───────────────────────────────────────────────────────
 
 function AllowlistEditor({
   allowlist,
+  savedAllowlist,
   followProfiles,
   onAdd,
   onRemove,
 }: {
   allowlist: string[]
+  savedAllowlist: Set<string>
   followProfiles: Map<string, Profile>
   onAdd: (input: string) => void
   onRemove: (pubkey: string) => void
@@ -459,6 +469,7 @@ function AllowlistEditor({
         const name = p?.displayName || p?.name || null
         const npub = nip19.npubEncode(pk)
         const short = `${npub.slice(0, 10)}…${npub.slice(-6)}`
+        const isUnsaved = !savedAllowlist.has(pk)
         return (
           <div key={pk} className="flex items-center gap-2.5">
             {p?.picture ? (
@@ -472,6 +483,7 @@ function AllowlistEditor({
               <div className="w-6 h-6 rounded-full flex-shrink-0 bg-zinc-800" />
             )}
             <span className="text-zinc-300 text-sm truncate flex-1">{name ?? short}</span>
+            {isUnsaved && <span className="text-amber-500 text-[10px] flex-shrink-0">unsaved</span>}
             {name && <span className="text-zinc-600 text-xs font-mono flex-shrink-0">{short}</span>}
             <button
               onClick={() => onRemove(pk)}
