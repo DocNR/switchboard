@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { nip19 } from 'nostr-tools'
 import type { Rules, AddRule, RemoveRule, Profile } from '@/lib/types'
+import { DEFAULT_RELAYS } from '@/lib/nostr'
 
 const ADD_META: Record<string, { label: string; unit: string }> = {
   replies:   { label: 'Replied to me',  unit: 'times' },
@@ -438,6 +439,57 @@ function AllowlistEditor({
   )
 }
 
+// Ping a relay by opening a WebSocket and measuring time-to-open.
+// Returns latency in ms, or null if it fails/times out.
+async function pingRelay(url: string, timeoutMs = 6000): Promise<number | null> {
+  return new Promise(resolve => {
+    const start = Date.now()
+    let done = false
+    let ws: WebSocket
+    const timer = setTimeout(() => {
+      if (!done) { done = true; try { ws.close() } catch { /* */ } ; resolve(null) }
+    }, timeoutMs)
+    try {
+      ws = new WebSocket(url)
+      ws.onopen  = () => { if (!done) { done = true; clearTimeout(timer); ws.close(); resolve(Date.now() - start) } }
+      ws.onerror = () => { if (!done) { done = true; clearTimeout(timer); resolve(null) } }
+    } catch {
+      clearTimeout(timer)
+      resolve(null)
+    }
+  })
+}
+
+type RelayStatus = { state: 'checking' } | { state: 'ok'; ms: number } | { state: 'slow'; ms: number } | { state: 'offline' }
+
+function RelayStatusBadge({ status }: { status: RelayStatus | undefined }) {
+  if (!status) return null
+  if (status.state === 'checking') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-zinc-500 flex-shrink-0 font-mono">
+        <span className="w-3 h-3 border border-zinc-500 border-t-transparent rounded-full animate-spin inline-block" />
+        …
+      </span>
+    )
+  }
+  if (status.state === 'offline') {
+    return (
+      <span className="flex items-center gap-1 text-xs text-zinc-400 flex-shrink-0 font-mono" title="Could not connect">
+        <span className="font-bold">✕</span> offline
+      </span>
+    )
+  }
+  // ok or slow
+  const label = `${status.ms}ms`
+  const icon  = status.state === 'slow' ? '△' : '✓'
+  const cls   = status.state === 'slow' ? 'text-zinc-400' : 'text-zinc-300'
+  return (
+    <span className={`flex items-center gap-1 text-xs flex-shrink-0 font-mono ${cls}`} title={status.state === 'slow' ? 'Connected but slow (>500ms)' : 'Connected'}>
+      <span>{icon}</span>{label}
+    </span>
+  )
+}
+
 function RelayEditor({
   relays,
   onChange,
@@ -450,6 +502,11 @@ function RelayEditor({
   detecting: boolean
 }) {
   const [input, setInput] = useState('')
+  const [statuses, setStatuses] = useState<Map<string, RelayStatus>>(new Map())
+  const [checking, setChecking] = useState(false)
+
+  const isDefault = relays.length === DEFAULT_RELAYS.length &&
+    DEFAULT_RELAYS.every(r => relays.includes(r))
 
   function handleAdd() {
     const url = input.trim()
@@ -459,21 +516,63 @@ function RelayEditor({
     setInput('')
   }
 
+  async function checkAll() {
+    setChecking(true)
+    // Mark all as checking first
+    setStatuses(new Map(relays.map(r => [r, { state: 'checking' }])))
+    // Ping in parallel, update each as it resolves
+    await Promise.all(relays.map(async relay => {
+      const ms = await pingRelay(relay)
+      setStatuses(prev => {
+        const next = new Map(prev)
+        if (ms === null) {
+          next.set(relay, { state: 'offline' })
+        } else if (ms > 500) {
+          next.set(relay, { state: 'slow', ms })
+        } else {
+          next.set(relay, { state: 'ok', ms })
+        }
+        return next
+      })
+    }))
+    setChecking(false)
+  }
+
   return (
     <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-3">
-      <p className="text-zinc-600 text-xs">
-        Accounts that only post to relays not listed here will appear inactive.
-        Add relays your community uses to reduce false positives.
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-zinc-600 text-xs">
+          Accounts that only post to unlisted relays will appear inactive.
+          Add relays your community uses to reduce false positives.
+        </p>
+        <div className="flex gap-3 flex-shrink-0">
+          {!isDefault && (
+            <button
+              onClick={() => { onChange([...DEFAULT_RELAYS]); setStatuses(new Map()) }}
+              className="text-xs text-zinc-600 hover:text-zinc-400 transition-colors underline"
+            >
+              Reset
+            </button>
+          )}
+          <button
+            onClick={checkAll}
+            disabled={checking}
+            className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-50"
+          >
+            {checking ? 'Checking…' : 'Check status'}
+          </button>
+        </div>
+      </div>
 
       <div className="space-y-1">
         {relays.map(relay => (
-          <div key={relay} className="flex items-center justify-between py-0.5">
-            <span className="text-zinc-400 text-sm font-mono truncate">{relay.replace('wss://', '')}</span>
+          <div key={relay} className="flex items-center gap-2 py-0.5">
+            <span className="text-zinc-400 text-sm font-mono truncate flex-1">{relay.replace('wss://', '')}</span>
+            <RelayStatusBadge status={statuses.get(relay)} />
             <button
               onClick={() => onChange(relays.filter(r => r !== relay))}
               disabled={relays.length <= 1}
-              className="text-zinc-600 hover:text-red-400 text-xs transition-colors ml-3 flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed"
+              className="text-zinc-600 hover:text-zinc-300 text-xs transition-colors flex-shrink-0 disabled:opacity-30 disabled:cursor-not-allowed ml-1"
             >
               Remove
             </button>

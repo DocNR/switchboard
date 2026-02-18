@@ -136,14 +136,20 @@ export default function DashboardPage() {
     const stored = localStorage.getItem('nostr_pubkey')
     if (!stored) { window.location.href = '/'; return }
     setPubkey(stored)
-    loadProfile(stored)
 
+    // Load relays BEFORE loadProfile so the initial fetch uses the right relays,
+    // not DEFAULT_RELAYS. loadProfile closes over `relays` from the render at
+    // call time, so we must read and set relays synchronously first.
+    let initialRelays = DEFAULT_RELAYS
     const storedRelays = localStorage.getItem('nostr_relays')
     if (storedRelays) {
-      try { setRelays(JSON.parse(storedRelays)) } catch { /* ignore */ }
+      try {
+        initialRelays = JSON.parse(storedRelays)
+        setRelays(initialRelays)
+      } catch { /* ignore */ }
     }
 
-    // Populate followProfiles from localStorage cache immediately
+    loadProfile(stored, initialRelays)
     setFollowProfiles(loadProfileCache())
   }, [])
 
@@ -179,7 +185,7 @@ export default function DashboardPage() {
 
   // Fetch profiles for uncached follows in the background so the allowlist
   // search can match by display name. Runs after follow list loads.
-  async function backgroundFetchFollowProfiles(pubkeys: string[]) {
+  async function backgroundFetchFollowProfiles(pubkeys: string[], fetchRelays: string[]) {
     const cached = loadProfileCache()
     const toFetch = pubkeys.filter(pk => !cached.has(pk))
     if (!toFetch.length) return
@@ -187,7 +193,7 @@ export default function DashboardPage() {
     for (let i = 0; i < toFetch.length; i += BATCH) {
       const batch = toFetch.slice(i, i + BATCH)
       try {
-        const profiles = await fetchProfiles(batch, DEFAULT_RELAYS)
+        const profiles = await fetchProfiles(batch, fetchRelays)
         mergeProfileCache(profiles)
         setFollowProfiles(prev => {
           const next = new Map(prev)
@@ -198,21 +204,21 @@ export default function DashboardPage() {
     }
   }
 
-  async function loadProfile(pk: string) {
+  async function loadProfile(pk: string, fetchRelays: string[] = relays) {
     setProfileLoading(true)
     try {
       const [profileMap, { follows: fl, rawEvent: re }, recentNotes, nip51Allowlist] = await Promise.all([
-        fetchProfiles([pk], relays),
-        fetchFollowList(pk, relays),
-        fetchRecentNotes(pk, 30, relays),
-        fetchAllowlist(pk, relays),
+        fetchProfiles([pk], fetchRelays),
+        fetchFollowList(pk, fetchRelays),
+        fetchRecentNotes(pk, 30, fetchRelays),
+        fetchAllowlist(pk, fetchRelays),
       ])
       const cutoff = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60
       setProfile(profileMap.get(pk) ?? null)
       setFollows(fl)
       setRawEvent(re)
       // Kick off background profile fetch so allowlist can search by name
-      if (fl.length > 0) backgroundFetchFollowProfiles(fl.map(f => f.pubkey))
+      if (fl.length > 0) backgroundFetchFollowProfiles(fl.map(f => f.pubkey), fetchRelays)
       if (nip51Allowlist.length > 0) {
         setRules(prev => ({ ...prev, allowlist: nip51Allowlist }))
       }
