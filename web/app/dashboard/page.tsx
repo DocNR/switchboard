@@ -29,6 +29,37 @@ import type { Profile, Follow, EngagementData, Rules, EvalledPubkey } from '@/li
 import RulesBuilder from '@/components/RulesBuilder'
 import DiffPreview from '@/components/DiffPreview'
 
+// ─── profile cache ───────────────────────────────────────────────────────────
+// Caches follow profiles in localStorage so the allowlist search can match names.
+// TTL: 24 hours. Stored as { [pubkey]: { profile, cachedAt } }.
+
+const PROFILE_CACHE_KEY = 'switchboard_profile_cache'
+const PROFILE_CACHE_TTL_MS = 24 * 60 * 60 * 1000
+
+function loadProfileCache(): Map<string, Profile> {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY)
+    if (!raw) return new Map()
+    const obj = JSON.parse(raw) as Record<string, { profile: Profile; cachedAt: number }>
+    const now = Date.now()
+    const map = new Map<string, Profile>()
+    for (const [pk, entry] of Object.entries(obj)) {
+      if (now - entry.cachedAt < PROFILE_CACHE_TTL_MS) map.set(pk, entry.profile)
+    }
+    return map
+  } catch { return new Map() }
+}
+
+function mergeProfileCache(incoming: Map<string, Profile>): void {
+  try {
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY)
+    const obj: Record<string, { profile: Profile; cachedAt: number }> = raw ? JSON.parse(raw) : {}
+    const now = Date.now()
+    for (const [pk, profile] of incoming) obj[pk] = { profile, cachedAt: now }
+    localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(obj))
+  } catch { /* storage quota exceeded — fail silently */ }
+}
+
 // ─── helpers ────────────────────────────────────────────────────────────────
 
 function timeAgo(unix: number): string {
@@ -83,6 +114,9 @@ export default function DashboardPage() {
   const [keepOverrides, setKeepOverrides] = useState<Set<string>>(new Set())
   const [skipOverrides, setSkipOverrides] = useState<Set<string>>(new Set())
 
+  // ── follow profile cache (for allowlist name search) ──
+  const [followProfiles, setFollowProfiles] = useState<Map<string, Profile>>(new Map())
+
   // ── allowlist sync ──
   const [allowlistSaving, setAllowlistSaving] = useState(false)
   const [allowlistSaved, setAllowlistSaved] = useState(false)
@@ -92,6 +126,10 @@ export default function DashboardPage() {
   const [publishError, setPublishError] = useState<string | null>(null)
   const [publishDone, setPublishDone] = useState(false)
   const [newFollowCount, setNewFollowCount] = useState<number | null>(null)
+
+  // ── broadcast ──
+  const [broadcasting, setBroadcasting] = useState(false)
+  const [broadcastResult, setBroadcastResult] = useState<string | null>(null)
 
   // ── init ──
   useEffect(() => {
@@ -104,6 +142,9 @@ export default function DashboardPage() {
     if (storedRelays) {
       try { setRelays(JSON.parse(storedRelays)) } catch { /* ignore */ }
     }
+
+    // Populate followProfiles from localStorage cache immediately
+    setFollowProfiles(loadProfileCache())
   }, [])
 
   function handleRelaysChange(newRelays: string[]) {
@@ -136,6 +177,27 @@ export default function DashboardPage() {
 
   // ── data loaders ────────────────────────────────────────────────────────
 
+  // Fetch profiles for uncached follows in the background so the allowlist
+  // search can match by display name. Runs after follow list loads.
+  async function backgroundFetchFollowProfiles(pubkeys: string[]) {
+    const cached = loadProfileCache()
+    const toFetch = pubkeys.filter(pk => !cached.has(pk))
+    if (!toFetch.length) return
+    const BATCH = 200
+    for (let i = 0; i < toFetch.length; i += BATCH) {
+      const batch = toFetch.slice(i, i + BATCH)
+      try {
+        const profiles = await fetchProfiles(batch, DEFAULT_RELAYS)
+        mergeProfileCache(profiles)
+        setFollowProfiles(prev => {
+          const next = new Map(prev)
+          for (const [pk, p] of profiles) next.set(pk, p)
+          return next
+        })
+      } catch { /* non-critical, skip batch */ }
+    }
+  }
+
   async function loadProfile(pk: string) {
     setProfileLoading(true)
     try {
@@ -149,6 +211,8 @@ export default function DashboardPage() {
       setProfile(profileMap.get(pk) ?? null)
       setFollows(fl)
       setRawEvent(re)
+      // Kick off background profile fetch so allowlist can search by name
+      if (fl.length > 0) backgroundFetchFollowProfiles(fl.map(f => f.pubkey))
       if (nip51Allowlist.length > 0) {
         setRules(prev => ({ ...prev, allowlist: nip51Allowlist }))
       }
@@ -298,6 +362,28 @@ export default function DashboardPage() {
     }
   }
 
+  // Re-publish the existing signed follow list event to all configured relays.
+  // No re-signing required — the event already has a valid id + sig.
+  async function broadcastFollowList() {
+    if (!rawEvent) return
+    setBroadcasting(true)
+    setBroadcastResult(null)
+    try {
+      const pool = new SimplePool()
+      const results = await Promise.allSettled(
+        relays.map(r => pool.publish([r], rawEvent))
+      )
+      pool.close(relays)
+      const ok = results.filter(r => r.status === 'fulfilled').length
+      setBroadcastResult(`Broadcast to ${ok}/${relays.length} relay${relays.length !== 1 ? 's' : ''}`)
+      setTimeout(() => setBroadcastResult(null), 4000)
+    } catch {
+      setBroadcastResult('Broadcast failed')
+    } finally {
+      setBroadcasting(false)
+    }
+  }
+
   function handleDisconnect() {
     localStorage.removeItem('nostr_pubkey')
     window.location.href = '/'
@@ -403,7 +489,7 @@ export default function DashboardPage() {
             onSaveAllowlist={saveAllowlist}
             allowlistSaving={allowlistSaving}
             allowlistSaved={allowlistSaved}
-            follows={follows}
+            followProfiles={followProfiles}
           />
         </>
 
@@ -434,6 +520,22 @@ export default function DashboardPage() {
                   label="Notes (30d)"
                 />
               </div>
+
+              {/* Broadcast — surfaces relay sync issues */}
+              {rawEvent && (
+                <div className="flex items-center justify-between">
+                  <p className="text-zinc-600 text-xs">
+                    {broadcastResult ?? 'Follow list may be out of sync across relays'}
+                  </p>
+                  <button
+                    onClick={broadcastFollowList}
+                    disabled={broadcasting}
+                    className="text-xs text-zinc-500 hover:text-zinc-300 transition-colors disabled:opacity-50 flex-shrink-0 ml-3"
+                  >
+                    {broadcasting ? 'Broadcasting…' : 'Sync to all relays'}
+                  </button>
+                </div>
+              )}
 
               {/* CTA */}
               <button

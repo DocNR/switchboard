@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { nip19 } from 'nostr-tools'
-import type { Rules, AddRule, RemoveRule, Follow, Profile } from '@/lib/types'
+import type { Rules, AddRule, RemoveRule, Profile } from '@/lib/types'
 
 const ADD_META: Record<string, { label: string; unit: string }> = {
   replies:   { label: 'Replied to me',  unit: 'times' },
@@ -44,7 +44,7 @@ interface RulesBuilderProps {
   onSaveAllowlist: () => Promise<void>
   allowlistSaving: boolean
   allowlistSaved: boolean
-  follows: Follow[]
+  followProfiles: Map<string, Profile>
 }
 
 export default function RulesBuilder({
@@ -62,7 +62,7 @@ export default function RulesBuilder({
   onSaveAllowlist,
   allowlistSaving,
   allowlistSaved,
-  follows,
+  followProfiles,
 }: RulesBuilderProps) {
   const [showRelays, setShowRelays] = useState(false)
   const [detectingRelays, setDetectingRelays] = useState(false)
@@ -201,7 +201,7 @@ export default function RulesBuilder({
         </div>
         <AllowlistEditor
           allowlist={rules.allowlist}
-          follows={follows}
+          followProfiles={followProfiles}
           onAdd={input => {
             try {
               const hex = input.startsWith('npub1') ? (nip19.decode(input).data as string) : input
@@ -302,27 +302,26 @@ export default function RulesBuilder({
 
 function AllowlistEditor({
   allowlist,
-  follows,
+  followProfiles,
   onAdd,
   onRemove,
 }: {
   allowlist: string[]
-  follows: Follow[]
+  followProfiles: Map<string, Profile>
   onAdd: (input: string) => void
   onRemove: (pubkey: string) => void
 }) {
   const [input, setInput] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
 
-  // Search follows by pubkey prefix (npub) when no display name is available
-  // Profiles aren't loaded here, so we match on npub prefix
-  const suggestions = input.trim().length >= 2
-    ? follows
-        .filter(f => {
-          if (allowlist.includes(f.pubkey)) return false
-          const npub = nip19.npubEncode(f.pubkey)
-          return npub.toLowerCase().includes(input.toLowerCase()) ||
-                 f.pubkey.startsWith(input.toLowerCase())
+  const needle = input.trim().toLowerCase()
+  const suggestions = needle.length >= 2
+    ? [...followProfiles.entries()]
+        .filter(([pk, p]) => {
+          if (allowlist.includes(pk)) return false
+          const name = (p.displayName || p.name || '').toLowerCase()
+          const npub = nip19.npubEncode(pk)
+          return name.includes(needle) || npub.includes(needle)
         })
         .slice(0, 8)
     : []
@@ -345,7 +344,7 @@ function AllowlistEditor({
             onFocus={() => setShowSuggestions(true)}
             onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
             onKeyDown={e => e.key === 'Enter' && handleAdd()}
-            placeholder="Search follows or paste npub1... / hex"
+            placeholder={followProfiles.size > 0 ? 'Search by name or paste npub1…' : 'Paste npub1… or hex pubkey'}
             className="flex-1 bg-zinc-900 border border-zinc-700 rounded px-3 py-1.5 text-sm placeholder-zinc-600 min-w-0"
           />
           <button
@@ -358,19 +357,28 @@ function AllowlistEditor({
 
         {showSuggestions && suggestions.length > 0 && (
           <div className="absolute z-10 w-full mt-1 bg-zinc-900 border border-zinc-700 rounded-lg overflow-hidden shadow-xl">
-            {suggestions.map(f => {
-              const npub = nip19.npubEncode(f.pubkey)
-              const short = `${npub.slice(0, 12)}…${npub.slice(-6)}`
+            {suggestions.map(([pk, p]) => {
+              const name = p.displayName || p.name || null
+              const npub = nip19.npubEncode(pk)
+              const short = `${npub.slice(0, 10)}…${npub.slice(-6)}`
               return (
                 <button
-                  key={f.pubkey}
-                  onMouseDown={() => handleAdd(f.pubkey)}
-                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-800 transition-colors text-left"
+                  key={pk}
+                  onMouseDown={() => handleAdd(pk)}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 hover:bg-zinc-800 transition-colors text-left"
                 >
-                  <span className="text-sm text-zinc-300 font-mono truncate">{short}</span>
-                  {f.petname && (
-                    <span className="text-xs text-zinc-500 flex-shrink-0">{f.petname}</span>
+                  {p.picture ? (
+                    <img
+                      src={p.picture}
+                      alt={name ?? short}
+                      className="w-6 h-6 rounded-full flex-shrink-0 bg-zinc-800 object-cover"
+                      onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full flex-shrink-0 bg-zinc-800" />
                   )}
+                  <span className="text-sm text-zinc-200 truncate flex-1">{name ?? short}</span>
+                  {name && <span className="text-xs text-zinc-600 flex-shrink-0 font-mono">{short}</span>}
                 </button>
               )
             })}
@@ -382,13 +390,27 @@ function AllowlistEditor({
         <p className="text-zinc-700 text-xs">No protected follows yet.</p>
       )}
       {allowlist.map(pk => {
+        const p = followProfiles.get(pk)
+        const name = p?.displayName || p?.name || null
         const npub = nip19.npubEncode(pk)
+        const short = `${npub.slice(0, 10)}…${npub.slice(-6)}`
         return (
-          <div key={pk} className="flex items-center justify-between">
-            <span className="text-zinc-400 text-sm font-mono">{`${npub.slice(0, 10)}…${npub.slice(-6)}`}</span>
+          <div key={pk} className="flex items-center gap-2.5">
+            {p?.picture ? (
+              <img
+                src={p.picture}
+                alt={name ?? short}
+                className="w-6 h-6 rounded-full flex-shrink-0 bg-zinc-800 object-cover"
+                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+              />
+            ) : (
+              <div className="w-6 h-6 rounded-full flex-shrink-0 bg-zinc-800" />
+            )}
+            <span className="text-zinc-300 text-sm truncate flex-1">{name ?? short}</span>
+            {name && <span className="text-zinc-600 text-xs font-mono flex-shrink-0">{short}</span>}
             <button
               onClick={() => onRemove(pk)}
-              className="text-zinc-600 hover:text-red-400 text-xs transition-colors ml-3"
+              className="text-zinc-600 hover:text-red-400 text-xs transition-colors ml-1 flex-shrink-0"
             >
               Remove
             </button>

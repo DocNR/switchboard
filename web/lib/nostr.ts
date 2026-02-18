@@ -33,7 +33,7 @@ export async function fetchFollowList(
   relays = DEFAULT_RELAYS
 ): Promise<{ follows: Follow[]; rawEvent: Event | null }> {
   const pool = new SimplePool()
-  const events = await pool.querySync(relays, { kinds: [3], authors: [pubkey], limit: 1 })
+  const events = await pool.querySync(relays, { kinds: [3], authors: [pubkey], limit: 5 })
   pool.close(relays)
 
   if (!events.length) return { follows: [], rawEvent: null }
