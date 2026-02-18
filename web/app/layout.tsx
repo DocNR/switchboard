@@ -19,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               url: typeof window !== 'undefined' ? window.location.origin : '',
             },
             accent: 'purple',
+            startHidden: true,
           }
         `}} />
       </head>

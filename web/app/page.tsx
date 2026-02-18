@@ -67,7 +67,7 @@ export default function Home() {
 
           <p className="text-zinc-600 text-xs">
             Works with Alby, nos2x, and any NIP-07 extension.
-            No extension? A login widget will appear automatically.
+            No extension? Connect via NIP-46 remote signer.
           </p>
         </div>
 
