@@ -192,7 +192,7 @@ export async function fetchLastPostDates(
   const pool = new SimplePool()
 
   const CONCURRENCY = 30     // authors queried in parallel per round
-  const TIMEOUT_MS   = 5000  // per-relay timeout per query
+  const TIMEOUT_MS   = 3000  // per-relay timeout per query
   const MAX_FAILURES = 5     // drop a relay after this many timeouts/errors
 
   // Track cumulative failures per relay across all rounds
