@@ -14,6 +14,8 @@ export const DEFAULT_RELAYS = [
   'wss://relay.nostr.band',
   'wss://offchain.pub',
   'wss://relay.snort.social',
+  'wss://relay.primal.net',
+  'wss://nostr.wine',
 ]
 
 // Convert npub1... or hex pubkey to hex
@@ -176,6 +178,10 @@ function extractZapSats(zapReceipt: Event): number {
 // filter. Batching causes prolific users to crowd out quieter ones: relays
 // return the N most-recent events across ALL authors combined, so heavy posters
 // can consume all available slots and quiet authors appear unfindable.
+//
+// Each relay is queried separately with a per-relay timeout. Relays that fail
+// repeatedly are dropped for the remainder of the run so one bad relay can't
+// stall the entire analysis.
 export async function fetchLastPostDates(
   pubkeys: string[],
   cutoffDays: number,
@@ -185,24 +191,41 @@ export async function fetchLastPostDates(
   const result = new Map<string, number | null>(pubkeys.map(pk => [pk, null]))
   const pool = new SimplePool()
 
-  // Run CONCURRENCY per-author queries at a time. Each query asks all relays
-  // for the single most recent post from one author — no crowding possible.
-  const CONCURRENCY = 30
+  const CONCURRENCY = 30     // authors queried in parallel per round
+  const TIMEOUT_MS   = 5000  // per-relay timeout per query
+  const MAX_FAILURES = 5     // drop a relay after this many timeouts/errors
+
+  // Track cumulative failures per relay across all rounds
+  const failures = new Map<string, number>(relays.map(r => [r, 0]))
+
   for (let i = 0; i < pubkeys.length; i += CONCURRENCY) {
     const batch = pubkeys.slice(i, i + CONCURRENCY)
+
+    // Recompute active relays at the start of each round
+    const active = relays.filter(r => (failures.get(r) ?? 0) < MAX_FAILURES)
+    if (active.length === 0) break  // all relays failed — give up
+
     await Promise.all(batch.map(async pk => {
-      try {
-        const events = await pool.querySync(relays, {
-          kinds: [1, 6],
-          authors: [pk],
-          since,
-          limit: 5, // a few in case relays disagree on recency
-        })
-        if (events.length > 0) {
-          const latest = events.reduce((a, b) => a.created_at > b.created_at ? a : b)
-          result.set(pk, latest.created_at)
+      // Query each relay independently so we can timeout and track failures per relay
+      const perRelay = await Promise.all(active.map(async relay => {
+        try {
+          return await Promise.race([
+            pool.querySync([relay], { kinds: [1, 6], authors: [pk], since, limit: 5 }),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error('timeout')), TIMEOUT_MS)
+            ),
+          ])
+        } catch {
+          failures.set(relay, (failures.get(relay) ?? 0) + 1)
+          return [] as Event[]
         }
-      } catch { /* skip on error — stays null */ }
+      }))
+
+      const all = perRelay.flat()
+      if (all.length > 0) {
+        const latest = all.reduce((a, b) => a.created_at > b.created_at ? a : b)
+        result.set(pk, latest.created_at)
+      }
     }))
   }
 
