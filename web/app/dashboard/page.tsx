@@ -24,6 +24,7 @@ import {
   buildAllowlistEvent,
   DEFAULT_RELAYS,
 } from '@/lib/nostr'
+import { getStoredBunkerURL, reconnectBunker, clearBunkerConnection } from '@/lib/bunker'
 import { evaluateAll, summarize } from '@/lib/rules'
 import { DEFAULT_RULES } from '@/lib/types'
 import type { Profile, Follow, EngagementData, Rules, EvalledPubkey } from '@/lib/types'
@@ -155,8 +156,16 @@ export default function DashboardPage() {
       } catch { /* ignore */ }
     }
 
-    loadProfile(stored, initialRelays)
-    setFollowProfiles(loadProfileCache())
+    // If connected via bunker, reconnect before any nostr operations
+    async function init() {
+      if (getStoredBunkerURL()) {
+        const pk = await reconnectBunker()
+        if (!pk) { window.location.href = '/'; return }
+      }
+      loadProfile(stored!, initialRelays)
+      setFollowProfiles(loadProfileCache())
+    }
+    init()
   }, [])
 
   function handleRelaysChange(newRelays: string[]) {
@@ -427,6 +436,7 @@ export default function DashboardPage() {
   }
 
   function handleDisconnect() {
+    clearBunkerConnection()
     localStorage.removeItem('nostr_pubkey')
     window.location.href = '/'
   }
