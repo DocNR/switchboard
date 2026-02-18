@@ -88,7 +88,7 @@ export default function Home() {
           <button
             onClick={handleLogin}
             disabled={loggingIn}
-            className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
+            className="w-full py-3.5 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition-colors"
           >
             {waiting ? 'Waiting for signer…' : loggingIn ? 'Connecting…' : 'Login with Nostr'}
           </button>

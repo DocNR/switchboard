@@ -40,6 +40,8 @@ interface RulesBuilderProps {
   loaded: boolean
   loading: boolean
   loadStep: string
+  loadStepNum: number
+  loadTotalSteps: number
   loadProgress: { done: number; total: number } | null
   onLoad: () => void
   onPreview: () => void
@@ -60,6 +62,8 @@ export default function RulesBuilder({
   loaded,
   loading,
   loadStep,
+  loadStepNum,
+  loadTotalSteps,
   loadProgress,
   onLoad,
   onPreview,
@@ -113,18 +117,20 @@ export default function RulesBuilder({
     <div className="space-y-6">
 
       {/* Lookback window */}
-      <div className="flex items-center gap-3">
-        <span className="text-zinc-400 text-sm">Lookback window</span>
-        <input
-          type="number"
-          inputMode="numeric"
-          value={getRaw('window', rules.windowDays)}
-          onChange={e => setRaw('window', e.target.value)}
-          onBlur={() => commitRaw('window', 1, v => onChange({ ...rules, windowDays: v }))}
-          className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-center"
-          min={1} max={365}
-        />
-        <span className="text-zinc-500 text-sm">days</span>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5">
+        <span className="text-zinc-400 text-sm min-w-[8rem]">Lookback window</span>
+        <span className="flex items-center gap-2 ml-7 sm:ml-0">
+          <input
+            type="number"
+            inputMode="numeric"
+            value={getRaw('window', rules.windowDays)}
+            onChange={e => setRaw('window', e.target.value)}
+            onBlur={() => commitRaw('window', 1, v => onChange({ ...rules, windowDays: v }))}
+            className="w-16 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-center"
+            min={1} max={365}
+          />
+          <span className="text-zinc-500 text-sm">days</span>
+        </span>
       </div>
 
       {/* ── Discover ── */}
@@ -136,46 +142,50 @@ export default function RulesBuilder({
         {rules.add.map((rule, i) => {
           const meta = ADD_META[rule.signal]
           return (
-            <label key={rule.signal} className="flex items-center gap-3 py-0.5 cursor-pointer">
+            <label key={rule.signal} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={rule.enabled}
                 onChange={e => updateAdd(i, { enabled: e.target.checked })}
                 className="w-4 h-4 flex-shrink-0 accent-purple-500"
               />
-              <span className={`text-sm flex-1 ${rule.enabled ? 'text-zinc-300' : 'text-zinc-600'}`}>
+              <span className={`text-sm min-w-[8rem] ${rule.enabled ? 'text-zinc-300' : 'text-zinc-600'}`}>
                 {meta.label}
               </span>
-              <span className="text-zinc-600 text-xs">&ge;</span>
-              <input
-                type="number"
-                inputMode="numeric"
-                value={getRaw(`add-${i}`, rule.threshold)}
-                disabled={!rule.enabled}
-                onChange={e => setRaw(`add-${i}`, e.target.value)}
-                onBlur={() => commitRaw(`add-${i}`, 1, v => updateAdd(i, { threshold: v }))}
-                className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-right disabled:opacity-30 disabled:cursor-not-allowed"
-                min={1}
-              />
-              <span className={`text-xs w-8 flex-shrink-0 ${rule.enabled ? 'text-zinc-500' : 'text-zinc-700'}`}>
-                {meta.unit}
+              <span className="flex items-center gap-2 ml-7 sm:ml-0">
+                <span className="text-zinc-600 text-xs">&ge;</span>
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  value={getRaw(`add-${i}`, rule.threshold)}
+                  disabled={!rule.enabled}
+                  onChange={e => setRaw(`add-${i}`, e.target.value)}
+                  onBlur={() => commitRaw(`add-${i}`, 1, v => updateAdd(i, { threshold: v }))}
+                  className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-right disabled:opacity-30 disabled:cursor-not-allowed"
+                  min={1}
+                />
+                <span className={`text-xs ${rule.enabled ? 'text-zinc-500' : 'text-zinc-700'}`}>
+                  {meta.unit}
+                </span>
               </span>
             </label>
           )
         })}
 
-        <div className="flex items-center gap-3 pt-1">
-          <span className="text-zinc-500 text-sm flex-1">Min account age</span>
-          <input
-            type="number"
-            inputMode="numeric"
-            value={getRaw('age', rules.minAccountAgeDays)}
-            onChange={e => setRaw('age', e.target.value)}
-            onBlur={() => commitRaw('age', 0, v => onChange({ ...rules, minAccountAgeDays: v }))}
-            className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-right"
-            min={0}
-          />
-          <span className="text-zinc-500 text-xs w-8 flex-shrink-0">days</span>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 pt-2">
+          <span className="text-zinc-500 text-sm min-w-[8rem]">Min account age</span>
+          <span className="flex items-center gap-2 ml-7 sm:ml-0">
+            <input
+              type="number"
+              inputMode="numeric"
+              value={getRaw('age', rules.minAccountAgeDays)}
+              onChange={e => setRaw('age', e.target.value)}
+              onBlur={() => commitRaw('age', 0, v => onChange({ ...rules, minAccountAgeDays: v }))}
+              className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-right"
+              min={0}
+            />
+            <span className="text-zinc-500 text-xs">days</span>
+          </span>
         </div>
       </div>
 
@@ -189,19 +199,19 @@ export default function RulesBuilder({
           const meta = REMOVE_META[rule.signal]
           return (
             <div key={rule.signal}>
-              <label className="flex items-center gap-3 py-0.5 cursor-pointer">
+              <label className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1.5 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={rule.enabled}
                   onChange={e => updateRemove(i, { enabled: e.target.checked })}
                   className="w-4 h-4 flex-shrink-0 accent-purple-500"
                 />
-                <span className={`text-sm flex-1 ${rule.enabled ? (meta.risky ? 'text-amber-400' : 'text-zinc-300') : 'text-zinc-600'}`}>
+                <span className={`text-sm min-w-[8rem] ${rule.enabled ? (meta.risky ? 'text-amber-400' : 'text-zinc-300') : 'text-zinc-600'}`}>
                   {meta.label}
                   {meta.risky && <span className="text-amber-600 text-xs ml-1">(risky)</span>}
                 </span>
-                {meta.hasThreshold ? (
-                  <>
+                {meta.hasThreshold && (
+                  <span className="flex items-center gap-2 ml-7 sm:ml-0">
                     <input
                       type="number"
                       inputMode="numeric"
@@ -212,12 +222,10 @@ export default function RulesBuilder({
                       className="w-20 bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-right disabled:opacity-30 disabled:cursor-not-allowed"
                       min={0}
                     />
-                    <span className={`text-xs w-8 flex-shrink-0 ${rule.enabled ? 'text-zinc-500' : 'text-zinc-700'}`}>
+                    <span className={`text-xs ${rule.enabled ? 'text-zinc-500' : 'text-zinc-700'}`}>
                       {meta.unit}
                     </span>
-                  </>
-                ) : (
-                  <div className="w-28 flex-shrink-0" />
+                  </span>
                 )}
               </label>
             </div>
@@ -250,7 +258,7 @@ export default function RulesBuilder({
             <button
               onClick={onSaveAllowlist}
               disabled={allowlistSaving}
-              className="w-full text-xs py-1.5 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+              className="w-full text-sm py-3 rounded border border-zinc-700 hover:border-zinc-500 text-zinc-400 hover:text-zinc-200 disabled:opacity-50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
             >
               {allowlistSaving ? 'Saving…' : allowlistSaved ? 'Saved' : 'Save to Nostr'}
             </button>
@@ -263,7 +271,7 @@ export default function RulesBuilder({
       <div className="space-y-2">
         <button
           onClick={() => setShowRelays(v => !v)}
-          className="flex items-center gap-2 text-zinc-500 hover:text-zinc-300 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+          className="flex items-center gap-2 py-2 text-zinc-500 hover:text-zinc-300 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
         >
           <span>{showRelays ? '▾' : '▸'}</span>
           <span className="font-medium uppercase tracking-wider">
@@ -285,11 +293,34 @@ export default function RulesBuilder({
       <div className="pt-2 space-y-4">
         {loading ? (
           <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-3">
+            {/* Segmented step bar */}
+            {loadTotalSteps > 0 && (
+              <div className="flex gap-1.5">
+                {Array.from({ length: loadTotalSteps }, (_, i) => {
+                  const stepIdx = i + 1
+                  const isFilled = stepIdx < loadStepNum
+                  const isActive = stepIdx === loadStepNum
+                  return (
+                    <div key={i} className="flex-1 h-1 rounded-full overflow-hidden bg-zinc-800">
+                      {isFilled && <div className="h-full w-full bg-purple-500 rounded-full" />}
+                      {isActive && <div className="h-full w-full bg-purple-600 rounded-full animate-pulse" />}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+
             <div className="flex items-center gap-3" aria-live="polite">
               <div className="w-4 h-4 border-2 border-purple-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-              <p className="text-zinc-400 text-sm">{loadStep || 'Loading…'}</p>
+              <div>
+                <p className="text-zinc-400 text-sm">{loadStep || 'Loading…'}</p>
+                {loadTotalSteps > 0 && (
+                  <p className="text-zinc-600 text-xs">Step {loadStepNum} of {loadTotalSteps}</p>
+                )}
+              </div>
             </div>
-            {loadProgress && (
+
+            {loadProgress ? (
               <div className="space-y-1.5">
                 <div
                   className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden"
@@ -308,15 +339,23 @@ export default function RulesBuilder({
                   {loadProgress.done.toLocaleString()} / {loadProgress.total.toLocaleString()} follows checked
                 </p>
               </div>
+            ) : (
+              /* Indeterminate bar for steps without progress data */
+              <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div
+                  className="h-full w-[40%] bg-purple-600 rounded-full"
+                  style={{ animation: 'indeterminate 1.4s ease-in-out infinite' }}
+                />
+              </div>
             )}
           </div>
         ) : !loaded ? (
           <button
             onClick={onLoad}
             disabled={enabledRules === 0}
-            className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+            className="w-full py-3.5 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
           >
-            {enabledRules === 0 ? 'Enable at least one rule to analyze' : 'Analyze My Follows →'}
+            {enabledRules === 0 ? 'Enable a rule first' : 'Analyze My Follows →'}
           </button>
         ) : (
           <>
@@ -358,9 +397,9 @@ export default function RulesBuilder({
             <button
               onClick={onPreview}
               disabled={!hasChanges}
-              className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+              className="w-full py-3.5 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
             >
-              {hasChanges ? 'Preview Changes →' : 'No changes with current rules'}
+              {hasChanges ? 'Preview Changes →' : 'No changes to preview'}
             </button>
           </>
         )}

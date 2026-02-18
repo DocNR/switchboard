@@ -104,6 +104,8 @@ export default function DashboardPage() {
   const [view, setView] = useState<View>('profile')
   const [analysisPhase, setAnalysisPhase] = useState<AnalysisPhase>('idle')
   const [loadStep, setLoadStep] = useState('')
+  const [loadStepNum, setLoadStepNum] = useState(0)
+  const [loadTotalSteps, setLoadTotalSteps] = useState(0)
   const [loadProgress, setLoadProgress] = useState<{ done: number; total: number } | null>(null)
   const [rules, setRules] = useState<Rules>(DEFAULT_RULES)
   const [allData, setAllData] = useState<Map<string, EngagementData>>(new Map())
@@ -241,13 +243,16 @@ export default function DashboardPage() {
   async function loadAnalysisData() {
     setAnalysisPhase('loading')
     setLoadProgress(null)
+    setLoadTotalSteps(3)
     try {
       // 1. Fetch engagement events (who engaged with the user in the window)
+      setLoadStepNum(1)
       setLoadStep('Fetching your engagement data…')
       const engagementMap = await fetchEngagementData(pubkey, rules.windowDays, relays)
 
       // 2. Fetch last post dates for all current follows
       const followPubkeys = follows.map(f => f.pubkey)
+      setLoadStepNum(2)
       setLoadStep('Checking follows for recent activity…')
       setLoadProgress({ done: 0, total: followPubkeys.length })
       const lastPostDates = await fetchLastPostDates(followPubkeys, 400, relays, (done, total) => {
@@ -257,6 +262,7 @@ export default function DashboardPage() {
       // 3. Fetch profiles for non-follow engagers (account age proxy via profile.createdAt)
       const followSet = new Set(followPubkeys)
       const engagerPubkeys = [...engagementMap.keys()].filter(pk => !followSet.has(pk))
+      setLoadStepNum(3)
       if (engagerPubkeys.length > 0) {
         setLoadStep(`Checking ${engagerPubkeys.length} engager account ages…`)
         const engagerProfiles = await fetchProfiles(engagerPubkeys, relays)
@@ -288,10 +294,14 @@ export default function DashboardPage() {
       setAllData(merged)
       setLoadedWindowDays(rules.windowDays)
       setLoadProgress(null)
-      setAnalysisPhase('ready')
+
+      setLoadStep('Running rules…')
+      // Brief pause so the user sees the step transition
+      await new Promise(r => setTimeout(r, 400))
 
       const evalled = evaluateAll(followSet, merged, rules)
       setEvalled(evalled)
+      setAnalysisPhase('ready')
     } catch (err) {
       console.error('Analysis failed:', err)
       setLoadStep('Failed to load data. Please try again.')
@@ -513,6 +523,8 @@ export default function DashboardPage() {
             loaded={analysisPhase === 'ready'}
             loading={analysisPhase === 'loading'}
             loadStep={loadStep}
+            loadStepNum={loadStepNum}
+            loadTotalSteps={loadTotalSteps}
             loadProgress={loadProgress}
             onLoad={loadAnalysisData}
             onPreview={async () => {
@@ -559,7 +571,7 @@ export default function DashboardPage() {
               <button
                 onClick={() => setView('rules')}
                 disabled={profileLoading}
-                className="w-full py-3 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors"
+                className="w-full py-3.5 px-6 rounded-lg bg-purple-600 hover:bg-purple-500 disabled:opacity-40 disabled:cursor-not-allowed font-medium transition-colors"
               >
                 Manage Follow List →
               </button>
@@ -571,7 +583,7 @@ export default function DashboardPage() {
                 const total = relayCoverage?.size ?? relays.length
                 const allCurrent = relayCoverage !== null && current === total
                 return (
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-3">
                     <p className="text-zinc-600 text-xs">
                       {broadcastResult
                         ?? (relayCoverage === null
