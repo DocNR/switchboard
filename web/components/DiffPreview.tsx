@@ -301,12 +301,11 @@ function Row({
   const npub = nip19.npubEncode(pubkey)
   return (
     <div className={`flex items-center gap-3 p-3 rounded-lg border border-zinc-800 transition-opacity ${dimmed ? 'opacity-40' : ''}`}>
+      {/* nostr: URI triggers native app picker on mobile (NIP-21) */}
       <a
-        href={`https://primal.net/p/${npub}`}
-        target="_blank"
-        rel="noopener noreferrer"
+        href={`nostr:${npub}`}
         className="flex-shrink-0"
-        title="Open profile"
+        title="Open in Nostr app"
       >
         {picture ? (
           <img
@@ -320,15 +319,25 @@ function Row({
         )}
       </a>
       <div className="min-w-0 flex-1">
-        <a
-          href={`https://primal.net/p/${npub}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm text-zinc-300 truncate hover:text-white transition-colors block"
-          title="Open profile"
-        >
-          {name}
-        </a>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <a
+            href={`nostr:${npub}`}
+            className="text-sm text-zinc-300 truncate hover:text-white transition-colors"
+            title="Open in Nostr app"
+          >
+            {name}
+          </a>
+          {/* Web fallback for desktop */}
+          <a
+            href={`https://primal.net/p/${npub}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-zinc-700 hover:text-zinc-400 transition-colors flex-shrink-0 text-xs"
+            title="Open on Primal web"
+          >
+            ↗
+          </a>
+        </div>
         {subtitle && <p className={`text-xs mt-0.5 ${subtitleClass}`}>{subtitle}</p>}
       </div>
       {badge && <span className="text-xs text-zinc-600 flex-shrink-0">{badge}</span>}
