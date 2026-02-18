@@ -171,35 +171,39 @@ function extractZapSats(zapReceipt: Event): number {
 
 // Fetch the most recent post (kind 1 or 6) for each pubkey in a list.
 // Returns a map of pubkey → unix timestamp of last post (null if none found).
+//
+// Queries each author individually rather than batching multiple authors per
+// filter. Batching causes prolific users to crowd out quieter ones: relays
+// return the N most-recent events across ALL authors combined, so heavy posters
+// can consume all available slots and quiet authors appear unfindable.
 export async function fetchLastPostDates(
   pubkeys: string[],
   cutoffDays: number,
   relays = DEFAULT_RELAYS,
-  batchSize = 100
 ): Promise<Map<string, number | null>> {
   const since = Math.floor(Date.now() / 1000) - cutoffDays * 24 * 60 * 60
   const result = new Map<string, number | null>(pubkeys.map(pk => [pk, null]))
   const pool = new SimplePool()
 
-  // Query in batches to avoid relay filter limits.
-  // Limit must be much larger than batchSize: the relay returns the N most
-  // recent events across ALL authors in the batch combined. With limit = batchSize,
-  // prolific authors crowd out others and they appear inactive. 20x gives each
-  // author ~20 slots on average, which is enough for anyone posting regularly.
-  for (let i = 0; i < pubkeys.length; i += batchSize) {
-    const batch = pubkeys.slice(i, i + batchSize)
-    const events = await pool.querySync(relays, {
-      kinds: [1, 6],
-      authors: batch,
-      since,
-      limit: batch.length * 20,
-    })
-    for (const event of events) {
-      const current = result.get(event.pubkey)
-      if (current === null || event.created_at > (current ?? 0)) {
-        result.set(event.pubkey, event.created_at)
-      }
-    }
+  // Run CONCURRENCY per-author queries at a time. Each query asks all relays
+  // for the single most recent post from one author — no crowding possible.
+  const CONCURRENCY = 30
+  for (let i = 0; i < pubkeys.length; i += CONCURRENCY) {
+    const batch = pubkeys.slice(i, i + CONCURRENCY)
+    await Promise.all(batch.map(async pk => {
+      try {
+        const events = await pool.querySync(relays, {
+          kinds: [1, 6],
+          authors: [pk],
+          since,
+          limit: 5, // a few in case relays disagree on recency
+        })
+        if (events.length > 0) {
+          const latest = events.reduce((a, b) => a.created_at > b.created_at ? a : b)
+          result.set(pk, latest.created_at)
+        }
+      } catch { /* skip on error — stays null */ }
+    }))
   }
 
   pool.close(relays)
