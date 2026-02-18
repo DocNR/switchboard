@@ -227,8 +227,8 @@ export default function RulesBuilder({
       <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-4 space-y-2">
         <div className="flex items-center justify-between mb-1">
           <div>
-            <p className="text-zinc-200 text-sm font-semibold">Allowlist</p>
-            <p className="text-zinc-600 text-xs">These accounts are never pruned</p>
+            <p className="text-zinc-200 text-sm font-semibold">Hall Pass</p>
+            <p className="text-zinc-600 text-xs">These accounts are white-listed and never pruned</p>
           </div>
           <button
             onClick={onSaveAllowlist}
@@ -345,7 +345,7 @@ export default function RulesBuilder({
             )}
             {summary.protected > 0 && (
               <p className="text-zinc-600 text-xs text-center">
-                {summary.protected} protected by allowlist
+                {summary.protected} protected by hall pass
               </p>
             )}
 

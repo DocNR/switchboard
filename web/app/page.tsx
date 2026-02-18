@@ -108,7 +108,7 @@ export default function Home() {
           <ul className="space-y-2 text-sm text-zinc-400">
             <li>✂ Remove follows who haven&apos;t posted in N months</li>
             <li>＋ Auto-follow people who reply, repost, or zap you</li>
-            <li>🔒 Protect specific accounts with an allowlist</li>
+            <li>🔒 Protect specific accounts with a hall pass</li>
             <li>👁 Preview all changes before they go live</li>
           </ul>
         </div>
