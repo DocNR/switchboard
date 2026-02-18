@@ -1,0 +1,23 @@
+# secrets — never commit these
+.env
+.env.local
+*.nsec
+
+# web app
+web/node_modules/
+web/.next/
+web/dist/
+web/.vite/
+web/out/
+
+# macOS
+.DS_Store
+
+# editor
+.vscode/
+.idea/
+
+# temp files from prune.sh
+pruned.json
+dormant.txt
+active.txt
